@@ -22,9 +22,8 @@ def get_user_by_uid(uidb64):
 
 
 def make_activation_link(user):
-    uid = encode_user_pk(user)
-    token = default_token_generator.make_token(user)
-    return f"{settings.BACKEND_API_URL}/activate/{uid}/{token}/"
+    params = urlencode({"uid": encode_user_pk(user), "token": make_token(user)})
+    return f"{settings.FRONTEND_ACTIVATION_URL}?{params}"
 
 
 def make_password_reset_link(user):

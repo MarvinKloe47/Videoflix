@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 
 @override_settings(
 	EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+	FRONTEND_ACTIVATION_URL="http://frontend/activate.html",
 	FRONTEND_PASSWORD_RESET_URL="http://frontend/reset.html",
 )
 class AuthenticationCookieTests(TestCase):
@@ -56,7 +57,7 @@ class AuthenticationCookieTests(TestCase):
 		return self.client.post("/api/register/", data, format="json")
 
 	def activation_params_from_mail(self):
-		match = re.search(r"activate/([^/]+)/([^/]+)/", mail.outbox[-1].body)
+		match = re.search(r"uid=([^&\s]+)&token=([^\s]+)", mail.outbox[-1].body)
 		self.assertIsNotNone(match)
 		return match.groups()
 
@@ -85,7 +86,7 @@ class AuthenticationCookieTests(TestCase):
 		self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 		self.assertFalse(user.is_active)
 		self.assertEqual(len(mail.outbox), 1)
-		self.assertIn("activate/", mail.outbox[0].body)
+		self.assertIn("http://frontend/activate.html?", mail.outbox[0].body)
 
 	def test_registration_rejects_invalid_duplicate_and_password_mismatch(self):
 		duplicate = self.post_register(self.registration_data(email=self.email))

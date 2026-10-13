@@ -143,6 +143,10 @@ EMAIL_BACKEND = os.getenv(
 )
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@videoflix.local")
 BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://127.0.0.1:8000/api")
+FRONTEND_ACTIVATION_URL = os.getenv(
+    "FRONTEND_ACTIVATION_URL",
+    "http://127.0.0.1:5500/pages/auth/activate.html",
+)
 FRONTEND_PASSWORD_RESET_URL = os.getenv(
     "FRONTEND_PASSWORD_RESET_URL",
     "http://127.0.0.1:5500/pages/auth/confirm_password.html",
