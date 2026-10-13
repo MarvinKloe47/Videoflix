@@ -4,6 +4,8 @@ from .views import (
     RegistrationView,
     ActivationView,
     LoginView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
     CSRFTokenView,
     LogoutView,
     UserInfoView,
@@ -12,12 +14,18 @@ from .views import (
 
 urlpatterns = [
     path("register/", RegistrationView.as_view(), name="register"),
-     path(
+    path(
         "activate/<str:uidb64>/<str:token>/",
         ActivationView.as_view(),
         name="activate",
     ),
     path("login/", LoginView.as_view(), name="login"),
+    path("password_reset/", PasswordResetRequestView.as_view(), name="password-reset"),
+    path(
+        "password_confirm/<str:uidb64>/<str:token>/",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
     path("csrf/", CSRFTokenView.as_view(), name="csrf"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("user/", UserInfoView.as_view(), name="user-info"),

@@ -25,7 +25,7 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-5$h)nohk3c7u-iql0k)g2^fsa8siel1x$+_)ueri^4vb+$6hy#'
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-videoflix-dev-only-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -137,8 +137,16 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # E-Mail-Konfiguration
 # ==============================
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "noreply@videoflix.local"
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@videoflix.local")
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://127.0.0.1:8000/api")
+FRONTEND_PASSWORD_RESET_URL = os.getenv(
+    "FRONTEND_PASSWORD_RESET_URL",
+    "http://127.0.0.1:5500/pages/auth/confirm_password.html",
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

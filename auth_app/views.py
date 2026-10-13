@@ -2,11 +2,8 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 
 from rest_framework import status
@@ -15,7 +12,16 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegistrationSerializer
+from .serializers import (
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegistrationSerializer,
+)
+from .services import (
+    get_user_by_uid,
+    send_activation_email,
+    send_password_reset_email,
+)
 
 
 def expire_jwt_cookie(response, key, path):
@@ -31,6 +37,73 @@ def expire_jwt_cookie(response, key, path):
     )
 
 
+def registration_message():
+    return {"message": "Registrierung erfolgreich. Bitte aktiviere dein Konto."}
+
+
+def activation_error(message):
+    return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def activation_success_message():
+    return {"message": "Dein Videoflix-Konto wurde erfolgreich aktiviert."}
+
+
+def activate_user(user):
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+
+
+def get_login_credentials(request):
+    return request.data.get("email"), request.data.get("password")
+
+
+def missing_login_data_response():
+    return Response(
+        {"message": "E-Mail und Passwort sind erforderlich."},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def invalid_login_response():
+    return Response(
+        {"message": "Ungültige Zugangsdaten oder Konto nicht aktiviert."},
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+def create_login_response(user):
+    refresh = RefreshToken.for_user(user)
+    response = Response({"message": "Login erfolgreich."})
+    set_access_cookie(response, refresh)
+    set_refresh_cookie(response, refresh)
+    return response
+
+
+def set_access_cookie(response, refresh):
+    response.set_cookie(
+        key="access_token",
+        value=str(refresh.access_token),
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="Lax",
+        max_age=300,
+        path="/",
+    )
+
+
+def set_refresh_cookie(response, refresh):
+    response.set_cookie(
+        key="refresh_token",
+        value=str(refresh),
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="Lax",
+        max_age=86400,
+        path="/api/",
+    )
+
+
 # --------------------------------------------------
 # REGISTRIERUNG
 # --------------------------------------------------
@@ -41,42 +114,11 @@ class RegistrationView(APIView):
 
     def post(self, request):
         serializer = RegistrationSerializer(data=request.data)
-
-        if serializer.is_valid():
-            user = serializer.save()
-
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            token = default_token_generator.make_token(user)
-
-            activation_link = (
-                f"http://127.0.0.1:8000/api/activate/{uid}/{token}/"
-            )
-
-            send_mail(
-                subject="Videoflix – Konto aktivieren",
-                message=(
-                    "Willkommen bei Videoflix!\n\n"
-                    "Klicke auf diesen Link, um dein Konto zu aktivieren:\n"
-                    f"{activation_link}"
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-            )
-
-            return Response(
-                {
-                    "message": (
-                        "Registrierung erfolgreich. "
-                        "Bitte aktiviere dein Konto."
-                    )
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        user = serializer.save()
+        send_activation_email(user)
+        return Response(registration_message(), status=status.HTTP_201_CREATED)
 
 
 # --------------------------------------------------
@@ -88,47 +130,72 @@ class ActivationView(APIView):
     permission_classes = []
 
     def get(self, request, uidb64, token):
-        User = get_user_model()
-
-        try:
-            uid = force_str(urlsafe_base64_decode(uidb64))
-            user = User.objects.get(pk=uid)
-
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            return Response(
-                {"message": "Ungültiger Aktivierungslink."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        user = get_user_by_uid(uidb64)
+        if user is None:
+            return activation_error("Ungültiger Aktivierungslink.")
         if user.is_active:
-            return Response(
-                {"message": "Dieses Konto ist bereits aktiviert."},
-                status=status.HTTP_200_OK,
-            )
-
+            return Response({"message": "Dieses Konto ist bereits aktiviert."})
         if not default_token_generator.check_token(user, token):
-            return Response(
-                {
-                    "message": (
-                        "Der Aktivierungslink ist ungültig "
-                        "oder abgelaufen."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return activation_error("Der Aktivierungslink ist ungültig oder abgelaufen.")
+        activate_user(user)
+        return Response(activation_success_message())
 
-        user.is_active = True
-        user.save(update_fields=["is_active"])
 
-        return Response(
-            {
-                "message": (
-                    "Dein Videoflix-Konto wurde "
-                    "erfolgreich aktiviert."
-                )
-            },
-            status=status.HTTP_200_OK,
+# --------------------------------------------------
+# PASSWORT ZURUECKSETZEN
+# --------------------------------------------------
+
+class PasswordResetRequestView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = get_reset_user(serializer.validated_data["email"])
+        if user is not None:
+            send_password_reset_email(user)
+        return Response(get_password_reset_response(), status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, uidb64, token):
+        user = get_valid_reset_user(uidb64, token)
+        serializer = PasswordResetConfirmSerializer(
+            data=request.data,
+            context={"user": user},
         )
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"message": "Passwort wurde aktualisiert."})
+
+
+def get_reset_user(email):
+    User = get_user_model()
+    return User.objects.filter(email__iexact=email, is_active=True).first()
+
+
+def get_valid_reset_user(uidb64, token):
+    user = get_user_by_uid(uidb64)
+    if user is None or not user.is_active:
+        raise_invalid_reset_token()
+    if not default_token_generator.check_token(user, token):
+        raise_invalid_reset_token()
+    return user
+
+
+def raise_invalid_reset_token():
+    from rest_framework.exceptions import ValidationError
+
+    raise ValidationError({"message": "Ungueltiger oder abgelaufener Link."})
+
+
+def get_password_reset_response():
+    return {"message": "Falls die E-Mail existiert, wurde eine Nachricht gesendet."}
 
 
 # --------------------------------------------------
@@ -141,66 +208,13 @@ class LoginView(APIView):
     permission_classes = []
 
     def post(self, request):
-        email = request.data.get("email")
-        password = request.data.get("password")
-
+        email, password = get_login_credentials(request)
         if not email or not password:
-            return Response(
-                {
-                    "message": (
-                        "E-Mail und Passwort sind erforderlich."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user = authenticate(
-            request,
-            username=email,
-            password=password,
-        )
-
+            return missing_login_data_response()
+        user = authenticate(request, username=email, password=password)
         if user is None:
-            return Response(
-                {
-                    "message": (
-                        "Ungültige Zugangsdaten "
-                        "oder Konto nicht aktiviert."
-                    )
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        refresh = RefreshToken.for_user(user)
-
-        response = Response(
-            {"message": "Login erfolgreich."},
-            status=status.HTTP_200_OK,
-        )
-
-        # Kurzlebiges Access-Token
-        response.set_cookie(
-            key="access_token",
-            value=str(refresh.access_token),
-            httponly=True,
-            secure=not settings.DEBUG,
-            samesite="Lax",
-            max_age=300,
-            path="/",
-        )
-
-        # Refresh-Token für die spätere Token-Erneuerung
-        response.set_cookie(
-            key="refresh_token",
-            value=str(refresh),
-            httponly=True,
-            secure=not settings.DEBUG,
-            samesite="Lax",
-            max_age=86400,
-            path="/api/",
-        )
-
-        return response
+            return invalid_login_response()
+        return create_login_response(user)
 
 
 # --------------------------------------------------
