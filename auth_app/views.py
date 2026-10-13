@@ -18,6 +18,19 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import RegistrationSerializer
 
 
+def expire_jwt_cookie(response, key, path):
+    response.set_cookie(
+        key=key,
+        value="",
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="Lax",
+        max_age=0,
+        expires="Thu, 01 Jan 1970 00:00:00 GMT",
+        path=path,
+    )
+
+
 # --------------------------------------------------
 # REGISTRIERUNG
 # --------------------------------------------------
@@ -240,17 +253,8 @@ class LogoutView(APIView):
             status=status.HTTP_200_OK,
         )
 
-        response.delete_cookie(
-            "access_token",
-            path="/",
-            samesite="Lax",
-        )
-
-        response.delete_cookie(
-            "refresh_token",
-            path="/api/",
-            samesite="Lax",
-        )
+        expire_jwt_cookie(response, "access_token", "/")
+        expire_jwt_cookie(response, "refresh_token", "/api/")
 
         return response
 
