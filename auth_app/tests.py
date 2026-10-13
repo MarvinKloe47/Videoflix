@@ -85,6 +85,8 @@ class AuthenticationCookieTests(TestCase):
 		user = self.User.objects.get(email="new@example.com")
 		self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 		self.assertFalse(user.is_active)
+		self.assertEqual(response.data["user"], {"id": user.id, "email": user.email})
+		self.assertIn("token", response.data)
 		self.assertEqual(len(mail.outbox), 1)
 		self.assertIn("http://frontend/activate.html?", mail.outbox[0].body)
 
@@ -119,6 +121,7 @@ class AuthenticationCookieTests(TestCase):
 		self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
 		self.assertEqual(expired_response.status_code, status.HTTP_400_BAD_REQUEST)
 		self.assertEqual(valid_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(valid_response.data["message"], "Account successfully activated.")
 
 	def test_login_rejects_inactive_user_wrong_password_and_missing_csrf(self):
 		inactive = self.create_user("inactive@example.com", self.password, False)
@@ -147,6 +150,8 @@ class AuthenticationCookieTests(TestCase):
 		access_cookie = response.cookies["access_token"]
 		refresh_cookie = response.cookies["refresh_token"]
 
+		self.assertEqual(response.data["detail"], "Login successful")
+		self.assertEqual(response.data["user"]["username"], self.email)
 		self.assertTrue(access_cookie["httponly"])
 		self.assertEqual(access_cookie["samesite"], "Lax")
 		self.assertEqual(access_cookie["max-age"], 300)
@@ -164,6 +169,17 @@ class AuthenticationCookieTests(TestCase):
 
 		self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+	def test_logout_requires_refresh_cookie(self):
+		response = self.client.post(
+			"/api/logout/",
+			{},
+			format="json",
+			**self.get_csrf_header(),
+		)
+
+		self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+		self.assertEqual(response.data["detail"], "Refresh token is missing.")
+
 	def test_logout_expires_access_and_refresh_cookies(self):
 		self.login()
 
@@ -175,6 +191,7 @@ class AuthenticationCookieTests(TestCase):
 		)
 
 		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertIn("Logout successful", response.data["detail"])
 
 		access_cookie = response.cookies["access_token"]
 		refresh_cookie = response.cookies["refresh_token"]
@@ -188,6 +205,53 @@ class AuthenticationCookieTests(TestCase):
 		self.assertEqual(refresh_cookie["max-age"], 0)
 		self.assertEqual(refresh_cookie["path"], "/api/")
 		self.assertEqual(refresh_cookie["samesite"], "Lax")
+
+	def test_token_refresh_requires_refresh_cookie(self):
+		response = self.client.post(
+			"/api/token/refresh/",
+			{},
+			format="json",
+			**self.get_csrf_header(),
+		)
+
+		self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+		self.assertEqual(response.data["detail"], "Refresh token is missing.")
+
+	def test_token_refresh_sets_new_access_cookie(self):
+		self.login()
+
+		response = self.client.post(
+			"/api/token/refresh/",
+			{},
+			format="json",
+			**self.get_csrf_header(),
+		)
+
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data["detail"], "Token refreshed")
+		self.assertIn("access", response.data)
+		self.assertIn("access_token", response.cookies)
+
+	def test_logout_blacklists_refresh_token(self):
+		self.login()
+		raw_token = self.client.cookies["refresh_token"].value
+
+		self.client.post(
+			"/api/logout/",
+			{},
+			format="json",
+			**self.get_csrf_header(),
+		)
+		self.client.cookies["refresh_token"] = raw_token
+		response = self.client.post(
+			"/api/token/refresh/",
+			{},
+			format="json",
+			**self.get_csrf_header(),
+		)
+
+		self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+		self.assertEqual(response.data["detail"], "Invalid refresh token.")
 
 	def test_user_endpoint_denies_access_after_logout(self):
 		self.login()
@@ -213,6 +277,10 @@ class AuthenticationCookieTests(TestCase):
 		self.assertEqual(known_response.status_code, status.HTTP_200_OK)
 		self.assertEqual(unknown_response.status_code, status.HTTP_200_OK)
 		self.assertEqual(known_response.data, unknown_response.data)
+		self.assertEqual(
+			known_response.data["detail"],
+			"An email has been sent to reset your password.",
+		)
 		self.assertEqual(len(mail.outbox), 1)
 
 	def test_password_reset_valid_invalid_and_expired_tokens(self):
@@ -239,6 +307,10 @@ class AuthenticationCookieTests(TestCase):
 		self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
 		self.assertEqual(expired_response.status_code, status.HTTP_400_BAD_REQUEST)
 		self.assertEqual(valid_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(
+			valid_response.data["detail"],
+			"Your Password has been successfully reset.",
+		)
 
 	def test_password_reset_changes_password_and_token_cannot_be_reused(self):
 		self.request_password_reset()
