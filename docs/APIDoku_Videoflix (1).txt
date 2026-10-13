@@ -1,0 +1,261 @@
+videoflix API Endpoint Dokumentation
+Authentication
+Login und Registrierung
+
+
+POST
+
+/api/register/
+
+Description: Registriert einen neuen Benutzer im System.
+Request Body
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "confirmed_password": "securepassword"
+}
+Success Response
+Nach erfolgreicher Registrierung wird eine Aktivierungs-E-Mail versendet. Der Response inkl. dem Token hat keine Verwendung im FrontEnd, da wir hier mit HTTP-ONLY-COOKIES arbeiten. Dieser ist zur Demonstration und Information für Dich.
+{
+  "user": {
+    "id": 1,
+    "email": "user@example.com"
+  },
+  "token": "activation_token"
+}
+Status Codes
+201: Benutzer erfolgreich erstellt.
+Rate Limits
+No limit
+No Permissions required
+Extra Information: Konto bleibt inaktiv bis Aktivierung via E-Mail.
+
+GET
+
+/api/activate/<uidb64>/<token>/
+
+Description: Aktiviert das Benutzerkonto mithilfe des per E-Mail gesendeten Tokens.
+URL Parameters
+Name	Type	Description
+uidb64	-	Base64-codierte Benutzer-ID
+token	-	Aktivierungstoken
+Request Body
+{
+
+}
+Success Response
+Aktivierungsstatusnachricht.
+{
+  "message": "Account successfully activated."
+}
+Status Codes
+200: Account erfolgreich aktiviert.
+400: Aktivierung fehlgeschlagen.
+Rate Limits
+No limit
+No Permissions required
+
+POST
+
+/api/login/
+
+Description: Authentifiziert den Benutzer und gibt JWT-Tokens zurück.
+Request Body
+{
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+Success Response
+JWT-Tokens, Benutzerinformationen und Cookies werden gesetzt. Der Response hat keine Verwendung im FrontEnd, da wir hier mit HTTP-ONLY-COOKIES arbeiten. Dieser ist zur Demonstration und Information für Dich.
+{
+  "detail": "Login successful",
+  "user": {
+    "id": 1,
+    "username": "user@example.com"
+  }
+}
+Status Codes
+200: Login erfolgreich.
+Rate Limits
+No limit
+No Permissions required
+Extra Information: Setzt HttpOnly-Cookies: access_token & refresh_token. Der access_token dient zur Authentifizierung bei API-Anfragen. Der refresh_token wird verwendet, um ein neuen Zugangstoken zu erhalten.
+
+POST
+
+/api/logout/
+
+Description: Meldet den Benutzer ab, indem der Refresh-Token ungültig gemacht wird.
+Request Body
+{
+
+}
+Success Response
+No description available.
+{
+  "detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."
+}
+Status Codes
+200: Logout erfolgreich.
+400: Refresh-Token fehlt.
+Rate Limits
+No limit
+Permissions required: Refresh-Token-Cookie erforderlich
+Extra Information: Löscht die Cookies access_token und refresh_token. Der Refresh-Token wird auf eine Blackalist gesetzt.
+
+POST
+
+/api/token/refresh/
+
+Description: Gibt ein neues Zugangstoken aus, wenn der alte Access-Token abgelaufen ist. Der Token im Response hat keine Verwendung für das FrontEnd da wir hier mit HTTP-ONLY-COOKIES arbeiten. Dieser ist nur zur Demonstration und Information für Dich.
+Request Body
+{
+
+}
+Success Response
+Neuer Access-Token.
+{
+  "detail": "Token refreshed",
+  "access": "new_access_token"
+}
+Status Codes
+200: Access-Token wurde erneuert.
+400: Refresh-Token fehlt.
+401: Ungültiger Refresh-Token.
+Rate Limits
+No limit
+Permissions required: Refresh-Token-Cookie erforderlich
+Extra Information: Setzt neuen access_token-Cookie. Der refresh_token muss im Cookie vorhanden und gültig sein.
+
+POST
+
+/api/password_reset/
+
+Description: Sendet einen Link zum Zurücksetzen des Passworts an die E-Mail des Benutzers.
+Request Body
+{
+  "email": "user@example.com"
+}
+Success Response
+Bestätigt, dass eine E-Mail zum Zurücksetzen gesendet wurde.
+{
+  "detail": "An email has been sent to reset your password."
+}
+Status Codes
+200: Reset-E-Mail wurde versendet.
+Rate Limits
+No limit
+Permissions required: Keine Authentifizierung erforderlich
+Extra Information: Nur möglich, wenn ein Benutzer mit dieser E-Mail existiert.
+
+POST
+
+/api/password_confirm/<uidb64>/<token>/
+
+Description: Bestätigt die Passwortänderung mit dem in der E-Mail enthaltenen Token.
+URL Parameters
+Name	Type	Description
+uidb64	-	Base64-codierte Benutzer-ID
+token	-	Token zur Passwort-Zurücksetzung
+Request Body
+{
+  "new_password": "newsecurepassword",
+  "confirm_password": "newsecurepassword"
+}
+Success Response
+Bestätigung über erfolgreiche Passwortänderung.
+{
+  "detail": "Your Password has been successfully reset."
+}
+Status Codes
+200: Passwort erfolgreich geändert.
+Rate Limits
+No limit
+Permissions required: Keine Authentifizierung erforderlich
+Video
+Videoanzeige, Streaming und Segmentbereitstellung
+
+
+GET
+
+/api/video/
+
+Description: Gibt eine Liste aller verfügbaren Videos zurück.
+Request Body
+{
+
+}
+Success Response
+Enthält eine Liste mit Metadaten zu allen Videos.
+[
+  {
+    "id": 1,
+    "created_at": "2023-01-01T12:00:00Z",
+    "title": "Movie Title",
+    "description": "Movie Description",
+    "thumbnail_url": "http://example.com/media/thumbnail/image.jpg",
+    "category": "Drama"
+  },
+  {
+    "id": 2,
+    "created_at": "2023-01-02T12:00:00Z",
+    "title": "Another Movie",
+    "description": "Another Description",
+    "thumbnail_url": "http://example.com/media/thumbnail/image2.jpg",
+    "category": "Romance"
+  }
+]
+Status Codes
+200: Liste erfolgreich zurückgegeben.
+401: Nicht authentifiziert.
+500: Interner Serverfehler.
+Rate Limits
+No limit
+Permissions required: JWT-Authentifizierung erforderlich
+
+GET
+
+/api/video/<int:movie_id>/<str:resolution>/index.m3u8
+
+Description: Gibt die HLS-Master-Playlist für einen bestimmten Film und eine gewählte Auflösung zurück.
+URL Parameters
+Name	Type	Description
+movie_id	-	Die ID des Filmes.
+resolution	-	Gewünschte Auflösung (z.B. '480p', '720p', '1080p').
+Request Body
+{
+
+}
+Success Response
+HLS-Manifestdatei (Content-Type: application/vnd.apple.mpegurl). Body enthält HLS-Manifestdatei im M3U8-Format.
+""
+Status Codes
+200: Manifest erfolgreich geliefert.
+404: Video oder Manifest nicht gefunden.
+Rate Limits
+No limit
+Permissions required: JWT-Authentifizierung erforderlich
+
+GET
+
+/api/video/<int:movie_id>/<str:resolution>/<str:segment>/
+
+Description: Gibt ein einzelnes HLS-Videosegment für einen bestimmten Film in gewählter Auflösung zurück.
+URL Parameters
+Name	Type	Description
+movie_id	-	ID des Films.
+resolution	-	Gewünschte Auflösung (z.B. '480p', '720p', '1080p').
+segment	-	Dateiname des Segments (z.B. '000.ts').
+Request Body
+{
+
+}
+Success Response
+Binäre TS-Datei (Content-Type: video/MP2T). Body enthält binäre Videodaten
+""
+Status Codes
+200: Segment erfolgreich geliefert.
+404: Video oder Segment nicht gefunden.
+Rate Limits
+No limit
+Permissions required: JWT-Authentifizierung erforderlich

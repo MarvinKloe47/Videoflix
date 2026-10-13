@@ -4,6 +4,13 @@ from django.db import models
 
 
 class Video(models.Model):
+    PROCESSING_STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("PROCESSING", "Processing"),
+        ("READY", "Ready"),
+        ("FAILED", "Failed"),
+    ]
+
     VISIBILITY_CHOICES = [
         ("PUBLIC", "Public"),
         ("PRIVATE", "Private"),
@@ -35,6 +42,14 @@ class Video(models.Model):
         choices=GENRE_CHOICES,
         default="ACTION",
     )
+
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default="PENDING",
+    )
+    processing_error = models.TextField(blank=True)
+    hls_output_path = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
         return self.title

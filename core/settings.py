@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "django_rq",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "auth_app",
@@ -128,6 +129,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -158,3 +161,17 @@ REST_FRAMEWORK = {
         "auth_app.authentication.CookieJWTAuthentication",
     ],
 }
+
+RQ_QUEUES = {
+    "default": {
+        "HOST": os.getenv("REDIS_HOST", "localhost"),
+        "PORT": int(os.getenv("REDIS_PORT", "6379")),
+        "DB": int(os.getenv("REDIS_DB", "0")),
+        "DEFAULT_TIMEOUT": 3600,
+    }
+}
+
+VIDEO_HLS_OUTPUT_DIR = os.getenv("VIDEO_HLS_OUTPUT_DIR", "hls")
+VIDEO_ENQUEUE_HLS_JOBS = os.getenv("VIDEO_ENQUEUE_HLS_JOBS", "true").lower() == "true"
+FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg")
+FFPROBE_BINARY = os.getenv("FFPROBE_BINARY", "ffprobe")
