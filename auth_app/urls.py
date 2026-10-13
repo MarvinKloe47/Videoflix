@@ -8,6 +8,7 @@ from .views import (
     PasswordResetRequestView,
     CSRFTokenView,
     LogoutView,
+    TokenRefreshView,
     UserInfoView,
 )
 
@@ -20,6 +21,7 @@ urlpatterns = [
         name="activate",
     ),
     path("login/", LoginView.as_view(), name="login"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("password_reset/", PasswordResetRequestView.as_view(), name="password-reset"),
     path(
         "password_confirm/<str:uidb64>/<str:token>/",

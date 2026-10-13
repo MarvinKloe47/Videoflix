@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
@@ -41,12 +42,19 @@ def registration_message():
     return {"message": "Registrierung erfolgreich. Bitte aktiviere dein Konto."}
 
 
+def registration_response(user):
+    return {
+        "user": {"id": user.id, "email": user.email},
+        "token": default_token_generator.make_token(user),
+    }
+
+
 def activation_error(message):
     return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
 
 
 def activation_success_message():
-    return {"message": "Dein Videoflix-Konto wurde erfolgreich aktiviert."}
+    return {"message": "Account successfully activated."}
 
 
 def activate_user(user):
@@ -72,12 +80,48 @@ def invalid_login_response():
     )
 
 
+def refresh_cookie_missing_response():
+    return Response(
+        {"detail": "Refresh token is missing."},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def invalid_refresh_token_response():
+    return Response(
+        {"detail": "Invalid refresh token."},
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
 def create_login_response(user):
     refresh = RefreshToken.for_user(user)
-    response = Response({"message": "Login erfolgreich."})
+    response = Response(login_response_data(user))
     set_access_cookie(response, refresh)
     set_refresh_cookie(response, refresh)
     return response
+
+
+def login_response_data(user):
+    return {
+        "detail": "Login successful",
+        "user": {"id": user.id, "username": user.email},
+    }
+
+
+def create_token_refresh_response(refresh):
+    response = Response(
+        {"detail": "Token refreshed", "access": str(refresh.access_token)}
+    )
+    set_access_cookie(response, refresh)
+    return response
+
+
+def blacklist_refresh_token(raw_token):
+    try:
+        RefreshToken(raw_token).blacklist()
+    except AttributeError:
+        return
 
 
 def set_access_cookie(response, refresh):
@@ -118,7 +162,7 @@ class RegistrationView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user = serializer.save()
         send_activation_email(user)
-        return Response(registration_message(), status=status.HTTP_201_CREATED)
+        return Response(registration_response(user), status=status.HTTP_201_CREATED)
 
 
 # --------------------------------------------------
@@ -171,7 +215,7 @@ class PasswordResetConfirmView(APIView):
         serializer.is_valid(raise_exception=True)
         user.set_password(serializer.validated_data["new_password"])
         user.save(update_fields=["password"])
-        return Response({"message": "Passwort wurde aktualisiert."})
+        return Response({"detail": "Your Password has been successfully reset."})
 
 
 def get_reset_user(email):
@@ -195,7 +239,22 @@ def raise_invalid_reset_token():
 
 
 def get_password_reset_response():
-    return {"message": "Falls die E-Mail existiert, wurde eine Nachricht gesendet."}
+    return {"detail": "An email has been sent to reset your password."}
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class TokenRefreshView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        raw_token = request.COOKIES.get("refresh_token")
+        if raw_token is None:
+            return refresh_cookie_missing_response()
+        try:
+            return create_token_refresh_response(RefreshToken(raw_token))
+        except TokenError:
+            return invalid_refresh_token_response()
 
 
 # --------------------------------------------------
@@ -262,8 +321,12 @@ class LogoutView(APIView):
     permission_classes = []
 
     def post(self, request):
+        raw_token = request.COOKIES.get("refresh_token")
+        if raw_token is None:
+            return refresh_cookie_missing_response()
+        blacklist_refresh_token(raw_token)
         response = Response(
-            {"message": "Logout erfolgreich."},
+            {"detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."},
             status=status.HTTP_200_OK,
         )
 
