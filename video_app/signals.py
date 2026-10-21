@@ -1,35 +1,61 @@
 import logging
+import uuid
 
 import django_rq
 from django.conf import settings
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from rq.exceptions import DuplicateJobError
 
 from .models import Video
-from .tasks import convert_video_to_hls
+from .tasks import convert_video_to_hls, hls_job_failed
 
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender=Video)
-def enqueue_hls_processing(sender, instance, created, update_fields=None, **kwargs):
-    if not should_enqueue_hls_job(instance, update_fields):
+@receiver(pre_save, sender=Video)
+def track_source_change(sender, instance, update_fields=None, **kwargs):
+    if update_fields is not None and "video_file" not in update_fields:
+        instance._source_changed = False
         return
+    old = (
+        Video.objects.filter(pk=instance.pk)
+        .values_list("video_file", flat=True)
+        .first()
+    )
+    instance._source_changed = bool(instance.video_file) and (
+        old != instance.video_file.name or not instance.video_file._committed
+    )
+    if instance._source_changed:
+        reset_processing(instance)
 
-    transaction.on_commit(lambda: enqueue_hls_job(instance.pk))
+
+def reset_processing(instance):
+    instance.hls_job_id = uuid.uuid4()
+    instance.processing_status = "PENDING"
+    instance.processing_error = ""
+    instance.hls_output_path = ""
 
 
-def enqueue_hls_job(video_id):
+@receiver(post_save, sender=Video)
+def enqueue_hls_processing(sender, instance, **kwargs):
+    if settings.VIDEO_ENQUEUE_HLS_JOBS and getattr(instance, "_source_changed", False):
+        job_id = str(instance.hls_job_id)
+        transaction.on_commit(lambda: enqueue_hls_job(instance.pk, job_id))
+
+
+def enqueue_hls_job(video_id, job_id):
     try:
-        django_rq.enqueue(convert_video_to_hls, video_id)
+        django_rq.enqueue(
+            convert_video_to_hls, video_id, job_id, job_id=job_id, unique=True,
+            on_failure=hls_job_failed
+        )
+    except DuplicateJobError:
+        return
     except Exception:
         logger.exception("Could not enqueue HLS job for video %s", video_id)
-
-
-def should_enqueue_hls_job(instance, update_fields):
-    if not settings.VIDEO_ENQUEUE_HLS_JOBS:
-        return False
-    if not instance.video_file:
-        return False
-    return update_fields is None or "video_file" in update_fields
+        Video.objects.filter(pk=video_id, hls_job_id=job_id).update(
+            processing_status="FAILED",
+            processing_error="Queue unavailable; upload again to retry.",
+        )
