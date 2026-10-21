@@ -1,17 +1,16 @@
 from django.urls import path
 
 from .views import (
-    RegistrationView,
     ActivationView,
+    CSRFTokenView,
     LoginView,
+    LogoutView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
-    CSRFTokenView,
-    LogoutView,
+    RegistrationView,
     TokenRefreshView,
     UserInfoView,
 )
-
 
 urlpatterns = [
     path("register/", RegistrationView.as_view(), name="register"),
