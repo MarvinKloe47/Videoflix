@@ -4,12 +4,13 @@ import uuid
 import django_rq
 from django.conf import settings
 from django.db import transaction
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from rq.exceptions import DuplicateJobError
 
 from .models import Video
 from .tasks import convert_video_to_hls, hls_job_failed
+from .utils import invalidate_video_cache
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,15 @@ def reset_processing(instance):
 
 @receiver(post_save, sender=Video)
 def enqueue_hls_processing(sender, instance, **kwargs):
+    transaction.on_commit(lambda: invalidate_video_cache(instance.pk))
     if settings.VIDEO_ENQUEUE_HLS_JOBS and getattr(instance, "_source_changed", False):
         job_id = str(instance.hls_job_id)
         transaction.on_commit(lambda: enqueue_hls_job(instance.pk, job_id))
+
+
+@receiver(post_delete, sender=Video)
+def clear_deleted_video_cache(sender, instance, **kwargs):
+    transaction.on_commit(lambda: invalidate_video_cache(instance.pk))
 
 
 def enqueue_hls_job(video_id, job_id):

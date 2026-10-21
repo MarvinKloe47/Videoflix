@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from .models import Video
-from .utils import video_metadata
+from .utils import cached_video_metadata
 
 
 class VideoSerializer(serializers.ModelSerializer):
@@ -18,7 +18,7 @@ class VideoSerializer(serializers.ModelSerializer):
         ]
 
     def to_representation(self, instance):
-        data = dict(video_metadata(instance))
+        data = dict(cached_video_metadata(instance))
         data["created_at"] = serializers.DateTimeField().to_representation(
             data["created_at"]
         )

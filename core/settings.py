@@ -178,6 +178,14 @@ VIDEO_ENQUEUE_HLS_JOBS = os.getenv("VIDEO_ENQUEUE_HLS_JOBS", "true").lower() == 
 FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg")
 FFPROBE_BINARY = os.getenv("FFPROBE_BINARY", "ffprobe")
 
+# Queue and cache use distinct Redis databases.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.getenv("CACHE_URL", "redis://localhost:6379/1"),
+        "TIMEOUT": 60,
+    }
+}
 CSRF_TRUSTED_ORIGINS = list(
     filter(
         None,

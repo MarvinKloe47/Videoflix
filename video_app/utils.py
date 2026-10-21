@@ -1,8 +1,29 @@
+import logging
+
+from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from .hls import HLS_RESOLUTIONS, get_hls_file_path
 from .models import Video
+
+logger = logging.getLogger(__name__)
+
+
+def invalidate_video_cache(video_id):
+    try:
+        cache.delete(f"video:{video_id}")
+    except Exception:
+        logger.warning("Metadata cache unavailable", exc_info=True)
+
+
+def cached_video_metadata(video):
+    try:
+        return cache.get_or_set(f"video:{video.pk}", lambda: video_metadata(video), 60)
+    except Exception:
+        logger.warning("Metadata cache unavailable", exc_info=True)
+        return video_metadata(video)
+
 
 def video_metadata(video):
     return {
