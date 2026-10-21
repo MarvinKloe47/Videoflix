@@ -1,17 +1,11 @@
-
 from rest_framework import serializers
+from rest_framework.reverse import reverse
+
 from .models import Video
+from .utils import video_metadata
 
 
 class VideoSerializer(serializers.ModelSerializer):
-    category = serializers.CharField(
-        source="genre",
-        read_only=True
-    )
-
-    thumbnail_url = serializers.SerializerMethodField()
-    video_url = serializers.SerializerMethodField()
-
     class Meta:
         model = Video
         fields = [
@@ -20,32 +14,19 @@ class VideoSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "thumbnail_url",
-            "video_url",
             "category",
         ]
 
-    def get_thumbnail_url(self, obj):
-        if obj.thumbnail_file:
-            request = self.context.get("request")
+    def to_representation(self, instance):
+        data = dict(video_metadata(instance))
+        data["created_at"] = serializers.DateTimeField().to_representation(
+            data["created_at"]
+        )
+        data["thumbnail_url"] = self.thumbnail_url(instance)
+        return data
 
-            if request:
-                return request.build_absolute_uri(
-                    obj.thumbnail_file.url
-                )
-
-            return obj.thumbnail_file.url
-
-        return None
-
-    def get_video_url(self, obj):
-        if obj.video_file:
-            request = self.context.get("request")
-
-            if request:
-                return request.build_absolute_uri(
-                    obj.video_file.url
-                )
-
-            return obj.video_file.url
-
+    def thumbnail_url(self, instance):
+        if instance.thumbnail_file:
+            return reverse("video-thumbnail", args=[instance.pk],
+                           request=self.context.get("request"))
         return None
