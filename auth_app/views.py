@@ -1,15 +1,12 @@
-
-from django.conf import settings
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -23,23 +20,17 @@ from .services import (
     send_activation_email,
     send_password_reset_email,
 )
-
-
-def expire_jwt_cookie(response, key, path):
-    response.set_cookie(
-        key=key,
-        value="",
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="Lax",
-        max_age=0,
-        expires="Thu, 01 Jan 1970 00:00:00 GMT",
-        path=path,
-    )
-
-
-def registration_message():
-    return {"message": "Registrierung erfolgreich. Bitte aktiviere dein Konto."}
+from .utils import (
+    activate_user,
+    blacklist_refresh_token,
+    expire_jwt_cookie,
+    get_login_credentials,
+    get_reset_user,
+    get_valid_reset_user,
+    set_access_cookie,
+    set_refresh_cookie,
+    validate_refresh_user,
+)
 
 
 def registration_response(user):
@@ -55,15 +46,6 @@ def activation_error(message):
 
 def activation_success_message():
     return {"message": "Account successfully activated."}
-
-
-def activate_user(user):
-    user.is_active = True
-    user.save(update_fields=["is_active"])
-
-
-def get_login_credentials(request):
-    return request.data.get("email"), request.data.get("password")
 
 
 def missing_login_data_response():
@@ -96,6 +78,7 @@ def invalid_refresh_token_response():
 
 def create_login_response(user):
     refresh = RefreshToken.for_user(user)
+    refresh["session_id"] = refresh["jti"]
     response = Response(login_response_data(user))
     set_access_cookie(response, refresh)
     set_refresh_cookie(response, refresh)
@@ -117,40 +100,10 @@ def create_token_refresh_response(refresh):
     return response
 
 
-def blacklist_refresh_token(raw_token):
-    try:
-        RefreshToken(raw_token).blacklist()
-    except AttributeError:
-        return
-
-
-def set_access_cookie(response, refresh):
-    response.set_cookie(
-        key="access_token",
-        value=str(refresh.access_token),
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="Lax",
-        max_age=300,
-        path="/",
-    )
-
-
-def set_refresh_cookie(response, refresh):
-    response.set_cookie(
-        key="refresh_token",
-        value=str(refresh),
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="Lax",
-        max_age=86400,
-        path="/api/",
-    )
-
-
 # --------------------------------------------------
 # REGISTRIERUNG
 # --------------------------------------------------
+
 
 class RegistrationView(APIView):
     authentication_classes = []
@@ -169,6 +122,7 @@ class RegistrationView(APIView):
 # E-MAIL-AKTIVIERUNG
 # --------------------------------------------------
 
+
 class ActivationView(APIView):
     authentication_classes = []
     permission_classes = []
@@ -180,7 +134,9 @@ class ActivationView(APIView):
         if user.is_active:
             return Response({"message": "Dieses Konto ist bereits aktiviert."})
         if not default_token_generator.check_token(user, token):
-            return activation_error("Der Aktivierungslink ist ungültig oder abgelaufen.")
+            return activation_error(
+                "Der Aktivierungslink ist ungültig oder abgelaufen."
+            )
         activate_user(user)
         return Response(activation_success_message())
 
@@ -188,6 +144,7 @@ class ActivationView(APIView):
 # --------------------------------------------------
 # PASSWORT ZURUECKSETZEN
 # --------------------------------------------------
+
 
 class PasswordResetRequestView(APIView):
     authentication_classes = []
@@ -218,26 +175,6 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Your Password has been successfully reset."})
 
 
-def get_reset_user(email):
-    User = get_user_model()
-    return User.objects.filter(email__iexact=email, is_active=True).first()
-
-
-def get_valid_reset_user(uidb64, token):
-    user = get_user_by_uid(uidb64)
-    if user is None or not user.is_active:
-        raise_invalid_reset_token()
-    if not default_token_generator.check_token(user, token):
-        raise_invalid_reset_token()
-    return user
-
-
-def raise_invalid_reset_token():
-    from rest_framework.exceptions import ValidationError
-
-    raise ValidationError({"message": "Ungueltiger oder abgelaufener Link."})
-
-
 def get_password_reset_response():
     return {"detail": "An email has been sent to reset your password."}
 
@@ -252,7 +189,9 @@ class TokenRefreshView(APIView):
         if raw_token is None:
             return refresh_cookie_missing_response()
         try:
-            return create_token_refresh_response(RefreshToken(raw_token))
+            refresh = RefreshToken(raw_token)
+            validate_refresh_user(refresh)
+            return create_token_refresh_response(refresh)
         except TokenError:
             return invalid_refresh_token_response()
 
@@ -260,6 +199,7 @@ class TokenRefreshView(APIView):
 # --------------------------------------------------
 # LOGIN MIT JWT-COOKIES UND CSRF-SCHUTZ
 # --------------------------------------------------
+
 
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
@@ -280,6 +220,7 @@ class LoginView(APIView):
 # CSRF-TOKEN ABRUFEN
 # --------------------------------------------------
 
+
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class CSRFTokenView(APIView):
     authentication_classes = []
@@ -292,10 +233,12 @@ class CSRFTokenView(APIView):
             {"csrfToken": token},
             status=status.HTTP_200_OK,
         )
-    
+
+
 # --------------------------------------------------
 # ANGEMELDETEN BENUTZER ABRUFEN
 # --------------------------------------------------
+
 
 class UserInfoView(APIView):
     permission_classes = [IsAuthenticated]
@@ -310,10 +253,12 @@ class UserInfoView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-    
+
+
 # --------------------------------------------------
 # LOGOUT
 # --------------------------------------------------
+
 
 @method_decorator(csrf_protect, name="dispatch")
 class LogoutView(APIView):
@@ -324,15 +269,17 @@ class LogoutView(APIView):
         raw_token = request.COOKIES.get("refresh_token")
         if raw_token is None:
             return refresh_cookie_missing_response()
-        blacklist_refresh_token(raw_token)
-        response = Response(
-            {"detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."},
-            status=status.HTTP_200_OK,
-        )
-
-        expire_jwt_cookie(response, "access_token", "/")
-        expire_jwt_cookie(response, "refresh_token", "/api/")
-
-        return response
+        try:
+            blacklist_refresh_token(raw_token)
+        except TokenError:
+            return invalid_refresh_token_response()
+        return logout_response()
 
 
+def logout_response():
+    response = Response({"detail": (
+        "Logout successful! All tokens will be deleted. Refresh token is now invalid."
+    )})
+    expire_jwt_cookie(response, "access_token", "/")
+    expire_jwt_cookie(response, "refresh_token", "/api/")
+    return response

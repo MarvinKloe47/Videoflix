@@ -1,8 +1,7 @@
-
-from django.conf import settings
 from django.middleware.csrf import CsrfViewMiddleware
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 
 
 class CSRFCheck(CsrfViewMiddleware):
@@ -18,6 +17,7 @@ class CookieJWTAuthentication(JWTAuthentication):
             return None
 
         validated_token = self.get_validated_token(raw_token)
+        reject_revoked_session(validated_token)
         user = self.get_user(validated_token)
 
         self.enforce_csrf(request)
@@ -33,3 +33,7 @@ class CookieJWTAuthentication(JWTAuthentication):
         if reason:
             raise PermissionDenied(f"CSRF-Prüfung fehlgeschlagen: {reason}")
 
+
+def reject_revoked_session(token):
+    if BlacklistedToken.objects.filter(token__jti=token.get("session_id", "")).exists():
+        raise AuthenticationFailed("Session expired")
