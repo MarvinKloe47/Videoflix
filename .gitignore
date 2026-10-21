@@ -6,3 +6,9 @@ db.sqlite3
 /videos/
 /thumbnails/
 /hls/
+media/
+staticfiles/
+.venv/
+.env.*
+!.env.example
+.pytest_cache/
