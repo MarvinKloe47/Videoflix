@@ -23,6 +23,9 @@ from .signals import enqueue_hls_job
 from .tasks import convert_video_to_hls, hls_job_failed
 
 
+@override_settings(CACHES={
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+})
 class VideoAPITests(TestCase):
     def setUp(self):
         cache.clear()
