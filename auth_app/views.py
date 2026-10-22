@@ -22,30 +22,23 @@ from .services import (
 )
 from .utils import (
     activate_user,
+    activation_success_message,
     blacklist_refresh_token,
     expire_jwt_cookie,
     get_login_credentials,
+    get_password_reset_response,
     get_reset_user,
     get_valid_reset_user,
+    login_response_data,
+    registration_response,
     set_access_cookie,
     set_refresh_cookie,
     validate_refresh_user,
 )
 
 
-def registration_response(user):
-    return {
-        "user": {"id": user.id, "email": user.email},
-        "token": default_token_generator.make_token(user),
-    }
-
-
 def activation_error(message):
     return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
-
-
-def activation_success_message():
-    return {"message": "Account successfully activated."}
 
 
 def missing_login_data_response():
@@ -85,24 +78,12 @@ def create_login_response(user):
     return response
 
 
-def login_response_data(user):
-    return {
-        "detail": "Login successful",
-        "user": {"id": user.id, "username": user.email},
-    }
-
-
 def create_token_refresh_response(refresh):
     response = Response(
         {"detail": "Token refreshed", "access": str(refresh.access_token)}
     )
     set_access_cookie(response, refresh)
     return response
-
-
-# --------------------------------------------------
-# REGISTRIERUNG
-# --------------------------------------------------
 
 
 class RegistrationView(APIView):
@@ -116,11 +97,6 @@ class RegistrationView(APIView):
         user = serializer.save()
         send_activation_email(user)
         return Response(registration_response(user), status=status.HTTP_201_CREATED)
-
-
-# --------------------------------------------------
-# E-MAIL-AKTIVIERUNG
-# --------------------------------------------------
 
 
 class ActivationView(APIView):
@@ -139,11 +115,6 @@ class ActivationView(APIView):
             )
         activate_user(user)
         return Response(activation_success_message())
-
-
-# --------------------------------------------------
-# PASSWORT ZURUECKSETZEN
-# --------------------------------------------------
 
 
 class PasswordResetRequestView(APIView):
@@ -175,10 +146,6 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Your Password has been successfully reset."})
 
 
-def get_password_reset_response():
-    return {"detail": "An email has been sent to reset your password."}
-
-
 @method_decorator(csrf_protect, name="dispatch")
 class TokenRefreshView(APIView):
     authentication_classes = []
@@ -196,11 +163,6 @@ class TokenRefreshView(APIView):
             return invalid_refresh_token_response()
 
 
-# --------------------------------------------------
-# LOGIN MIT JWT-COOKIES UND CSRF-SCHUTZ
-# --------------------------------------------------
-
-
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
     authentication_classes = []
@@ -214,11 +176,6 @@ class LoginView(APIView):
         if user is None:
             return invalid_login_response()
         return create_login_response(user)
-
-
-# --------------------------------------------------
-# CSRF-TOKEN ABRUFEN
-# --------------------------------------------------
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -235,11 +192,6 @@ class CSRFTokenView(APIView):
         )
 
 
-# --------------------------------------------------
-# ANGEMELDETEN BENUTZER ABRUFEN
-# --------------------------------------------------
-
-
 class UserInfoView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -253,11 +205,6 @@ class UserInfoView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-
-
-# --------------------------------------------------
-# LOGOUT
-# --------------------------------------------------
 
 
 @method_decorator(csrf_protect, name="dispatch")

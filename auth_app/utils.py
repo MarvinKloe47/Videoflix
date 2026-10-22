@@ -87,3 +87,25 @@ def raise_invalid_reset_token():
     from rest_framework.exceptions import ValidationError
 
     raise ValidationError({"message": "Ungueltiger oder abgelaufener Link."})
+
+
+def registration_response(user):
+    return {
+        "user": {"id": user.id, "email": user.email},
+        "token": default_token_generator.make_token(user),
+    }
+
+
+def activation_success_message():
+    return {"message": "Account successfully activated."}
+
+
+def login_response_data(user):
+    return {
+        "detail": "Login successful",
+        "user": {"id": user.id, "username": user.email},
+    }
+
+
+def get_password_reset_response():
+    return {"detail": "An email has been sent to reset your password."}
