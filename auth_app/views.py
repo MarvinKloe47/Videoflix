@@ -22,11 +22,8 @@ from .services import (
 )
 from .utils import (
     activate_user,
-    activation_success_message,
     blacklist_refresh_token,
     expire_jwt_cookie,
-    get_login_credentials,
-    get_password_reset_response,
     get_reset_user,
     get_valid_reset_user,
     login_response_data,
@@ -117,7 +114,7 @@ class ActivationView(APIView):
                 "Der Aktivierungslink ist ungültig oder abgelaufen."
             )
         activate_user(user)
-        return Response(activation_success_message())
+        return Response({"message": "Account successfully activated."})
 
 
 class PasswordResetRequestView(APIView):
@@ -131,7 +128,10 @@ class PasswordResetRequestView(APIView):
         user = get_reset_user(serializer.validated_data["email"])
         if user is not None:
             send_password_reset_email(user)
-        return Response(get_password_reset_response(), status=status.HTTP_200_OK)
+        return Response(
+            {"detail": "An email has been sent to reset your password."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class PasswordResetConfirmView(APIView):
@@ -176,7 +176,8 @@ class LoginView(APIView):
     permission_classes = []
 
     def post(self, request):
-        email, password = get_login_credentials(request)
+        email = request.data.get("email")
+        password = request.data.get("password")
         if not email or not password:
             return missing_login_data_response()
         user = authenticate(request, username=email, password=password)

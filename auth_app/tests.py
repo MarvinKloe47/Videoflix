@@ -7,6 +7,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import UntypedToken
 
 
 @override_settings(
@@ -91,6 +92,10 @@ class AuthenticationCookieTests(TestCase):
         self.assertEqual(cookie["samesite"], "Lax")
         self.assertEqual(cookie["max-age"], age)
         self.assertEqual(cookie["path"], path)
+        self.assertEqual(bool(cookie["secure"]), not settings.DEBUG)
+        if age:
+            token = UntypedToken(cookie.value)
+            self.assertEqual(token["exp"] - token["iat"], age)
 
     def confirm_reset(
         self, uid, token, password="NewSecurePass123!", confirmation=None
@@ -263,7 +268,7 @@ class AuthenticationCookieTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["detail"], "Token refreshed")
         self.assertIn("access", response.data)
-        self.assertIn("access_token", response.cookies)
+        self.assert_jwt_cookie(response, "access_token", "/", 300)
 
     def test_logout_blacklists_refresh_token(self):
         self.login()

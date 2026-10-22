@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.utils import get_md5_hash_password
 
@@ -36,10 +37,6 @@ def activate_user(user):
     user.save(update_fields=["is_active"])
 
 
-def get_login_credentials(request):
-    return request.data.get("email"), request.data.get("password")
-
-
 def blacklist_refresh_token(raw_token):
     try:
         RefreshToken(raw_token).blacklist()
@@ -55,7 +52,7 @@ def set_access_cookie(response, refresh):
         httponly=True,
         secure=not settings.DEBUG,
         samesite="Lax",
-        max_age=300,
+        max_age=int(api_settings.ACCESS_TOKEN_LIFETIME.total_seconds()),
         path="/",
     )
 
@@ -68,7 +65,7 @@ def set_refresh_cookie(response, refresh):
         httponly=True,
         secure=not settings.DEBUG,
         samesite="Lax",
-        max_age=86400,
+        max_age=int(api_settings.REFRESH_TOKEN_LIFETIME.total_seconds()),
         path="/api/",
     )
 
@@ -101,16 +98,8 @@ def registration_response(user):
     }
 
 
-def activation_success_message():
-    return {"message": "Account successfully activated."}
-
-
 def login_response_data(user):
     return {
         "detail": "Login successful",
         "user": {"id": user.id, "username": user.email},
     }
-
-
-def get_password_reset_response():
-    return {"detail": "An email has been sent to reset your password."}

@@ -27,18 +27,18 @@ def get_user_by_uid(uidb64):
 
 def make_activation_link(user):
     # The frontend reads these parameters and calls the activation API.
-    params = urlencode({"uid": encode_user_pk(user), "token": make_token(user)})
+    params = urlencode({
+        "uid": encode_user_pk(user), "token": default_token_generator.make_token(user)
+    })
     return f"{settings.FRONTEND_ACTIVATION_URL}?{params}"
 
 
 def make_password_reset_link(user):
     # The frontend collects the new password before posting it with this token.
-    params = urlencode({"uid": encode_user_pk(user), "token": make_token(user)})
+    params = urlencode({
+        "uid": encode_user_pk(user), "token": default_token_generator.make_token(user)
+    })
     return f"{settings.FRONTEND_PASSWORD_RESET_URL}?{params}"
-
-
-def make_token(user):
-    return default_token_generator.make_token(user)
 
 
 def send_activation_email(user):
