@@ -10,8 +10,12 @@ videos
 thumbnails
 hls
 staticfiles
-# Own generated Academy build context and local credentials must never enter this image.
+# Previous local build contexts and credentials must never enter this image.
 docker/academy/.runtime
+
+# Init creates these in the source mount, not in the image or Git repository.
+auth_app/migrations/[0-9]*.py
+video_app/migrations/[0-9]*.py
 
 # Backend images exclude the separately maintained frontend and editor/cache files.
 Videoflix_frontend

@@ -13,10 +13,11 @@ until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
 done
 
 case "${1:-web}" in
-    migrate)
+    init)
+        # Create the custom User's initial migration before resolving admin/JWT deps.
+        python manage.py makemigrations auth_app video_app --noinput
         python manage.py migrate --noinput
         python manage.py collectstatic --noinput
-        python /app/academy/bootstrap_admin.py
         ;;
     worker)
         exec python manage.py rqworker default

@@ -1,24 +1,27 @@
-# OWN extension: merge AFTER original/docker-compose.yml; never edit originals.
-# Paths are relative to the repository root via --project-directory.
-x-academy-app: &app
+# Own extension, loaded automatically after the unchanged Academy Compose file.
+# New project name keeps existing videoflix and videoflix-academy volumes separate.
+name: videoflix-submission
+
+x-app: &app
   build:
-    context: ./docker/academy/.runtime/context
+    context: .
     dockerfile: backend.Dockerfile
-  image: videoflix-academy:local
-  env_file: !override
-    - ./docker/academy/.runtime/.env
+  image: videoflix-submission:local
+  env_file: .env
   environment:
     DJANGO_SETTINGS_MODULE: core.academy_settings
+    SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
     DB_HOST: db
     DB_PORT: "5432"
     REDIS_HOST: redis
-    REDIS_LOCATION: redis://redis:6379/1
+    REDIS_LOCATION: ${REDIS_LOCATION:-redis://redis:6379/1}
     MEDIA_ROOT: /app/media
     PYTHONUNBUFFERED: "1"
     PYTHONDONTWRITEBYTECODE: "1"
     PYTHONPATH: /app
-  entrypoint: ["/bin/sh", "/app/academy/entrypoint.sh"]
+  entrypoint: ["/bin/sh", "/app/docker/academy/entrypoint.sh"]
   volumes: !override
+    - .:/app
     - videoflix_media:/app/media
     - videoflix_static:/app/static
   restart: unless-stopped
@@ -27,6 +30,8 @@ services:
   db:
     image: postgres:18-alpine
     container_name: !reset null
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -43,9 +48,9 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
-  migrate:
+  init:
     <<: *app
-    command: ["migrate"]
+    command: ["init"]
     restart: "no"
     depends_on:
       db:
@@ -56,14 +61,14 @@ services:
     <<: *app
     container_name: !reset null
     ports: !override
-      - "127.0.0.1:${ACADEMY_HTTP_PORT:-8001}:8000"
+      - "127.0.0.1:${HTTP_PORT:-8000}:8000"
     command: ["web"]
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
+      init:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/csrf/', timeout=3)"]
@@ -78,5 +83,5 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
+      init:
         condition: service_completed_successfully

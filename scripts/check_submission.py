@@ -10,7 +10,7 @@ HOOK_NAMES = {"setUp", "tearDown"}
 
 
 def python_sources():
-    files = [ROOT / "manage.py", ROOT / "docker/academy/bootstrap_admin.py"]
+    files = [ROOT / "manage.py"]
     for directory in ("auth_app", "video_app", "core", "scripts"):
         files.extend((ROOT / directory).rglob("*.py"))
     return [p for p in files if not {"migrations", "__pycache__"} & set(p.parts)]

@@ -35,13 +35,24 @@ upscaling; under-480p files fail. Paths stay within MEDIA_ROOT. Playlists refere
 only protected segment URLs. Only READY assets are served. Queue/conversion failures
 are visible in processing_status/processing_error and RQ logs.
 
-core/settings.py supports the existing local profile. The isolated Academy settings
-module maps official environment names and static volume paths. The original
-Academy Dockerfile/Compose/entrypoint remain byte-identical; the separate override
-selects an email-aware bootstrap and foreground web/worker processes behind a
-one-shot migration gate. Sources are staged by allowlist; runtime secrets stay
-outside that image context. Existing database/media volumes are not reused across
-profiles. No schema migration was needed for cleanup.
+The root Academy Dockerfile, Compose file and original entrypoint are unchanged
+copies of the upstream snapshot. Compose automatically loads our separate override,
+which builds directly from the checkout. One init container generates project
+migrations, migrates PostgreSQL and collects static files before web/worker start.
+The own entrypoint bypasses the upstream username-based admin bootstrap; optional
+administrators are created with Django's built-in createsuperuser command.
+
+The mentor requires empty project migration packages in the submitted repository.
+Only their __init__.py files are versioned. Initial migrations are generated inside
+the init container in the shared source mount, before dependencies on the custom
+User are applied. Generated migrations must be retained with their database.
+This is a fresh-install submission profile, not a migration path for existing data.
+New project-scoped volumes keep both previous stacks' data separate and untouched.
+
+core.academy_settings maps official environment names and static paths without
+changing the application's auth/video logic. Runtime secrets are in ignored .env;
+no host Python or PowerShell preparation is needed. Setup and known limitations
+are described in docker/academy/README.md.
 
 Tests use PostgreSQL. Unit/API tests isolate outbound email and metadata cache;
 the container smoke test deliberately uses real Redis, RQ and FFmpeg. Browser tests
@@ -67,11 +78,10 @@ The contract in `APIDoku_Videoflix (1).txt` remains authoritative. Existing addi
 | GET | /api/video/id/ | Authenticated public-video details |
 | GET | /api/video/id/thumbnail/ | Protected thumbnail |
 
-The Academy backend listens on host port 8001 by default. The separately maintained
-frontend currently expects port 8000. Configure its API port separately, or free
-port 8000 before setting ACADEMY_HTTP_PORT=8000 in the Academy runtime environment.
-The root Dockerfile and compose.yaml still exist as the earlier independent local
-profile; the main README intentionally documents only the Academy profile.
+The default backend host port is 8000, configurable through HTTP_PORT. The
+separate frontend must use that port and the same hostname. The default Compose
+project is videoflix-submission. Previous profiles and host preparation scripts
+have been retired; do not attach their old volumes to this fresh-schema setup.
 
 Staff video uploads use `/admin/video_app/video/add/` with an MP4 and a JPG/PNG/WebP
 thumbnail. Frontend activation/reset URLs are set with FRONTEND_ACTIVATION_URL and

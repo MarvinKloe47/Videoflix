@@ -1,4 +1,7 @@
 /docker/academy/original/* -text whitespace=cr-at-eol
+/backend.Dockerfile -text whitespace=cr-at-eol
+/backend.entrypoint.sh -text
+/docker-compose.yml -text whitespace=cr-at-eol
 /docker/academy/*.sh text eol=lf
 
 # Preserve intentional Markdown line breaks in the supplied course license.

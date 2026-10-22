@@ -1,75 +1,71 @@
 # Videoflix Backend
 
-Backend for the Developer Akademie Videoflix student project. It provides
-account registration, email activation, login, password reset and video streaming.
+Developer Akademie student project with account authentication and protected
+HLS video streaming. The frontend is maintained separately.
 
 ## Technologies
 
-Python, Django, Django REST Framework, PostgreSQL, Redis, Django RQ,
-FFmpeg and Docker.
+Python, Django REST Framework, PostgreSQL, Redis, Django RQ, FFmpeg and Docker.
 
 ## Requirements
 
-- Git
-- Python 3.12 or newer for the setup script
-- Windows with PowerShell
-- Docker Desktop with Linux containers and Docker Compose 2.24.4 or newer
+Git and Docker with Linux containers and Docker Compose 2.24.4 or newer.
+Use Docker Desktop on Windows/macOS or Docker Engine with Compose on Linux.
+No Python or PowerShell installation is required on the host.
 
-## Setup
+## Installation
 
-Clone the repository and prepare the local environment:
-
-```powershell
+```sh
 git clone https://github.com/MarvinKloe47/Videoflix.git
 cd Videoflix
-python scripts/prepare_academy.py
 ```
 
-The script creates `docker/academy/.runtime/.env` with local credentials.
-Existing settings are kept. Do not commit this file.
-Application dependencies and FFmpeg are installed inside Docker.
+Copy `.env.example` to `.env` using your editor or file manager.
+Alternatively, use `cp .env.example .env` on macOS/Linux or
+`Copy-Item .env.example .env` in Windows PowerShell.
 
-## Start the Academy Docker setup
+Edit `.env` and replace **SECRET_KEY** and **DB_PASSWORD** with different long,
+random values. The remaining defaults work for local Docker use. Never commit
+`.env`. For real email delivery, configure the SMTP values explained in that file;
+the default email backend prints messages to the container logs.
 
-Run these commands from the repository root:
+Start from the repository root:
 
-```powershell
-.\scripts\academy.ps1 config --quiet
-.\scripts\academy.ps1 up --build -d --wait --wait-timeout 120
-.\scripts\academy.ps1 ps --all
+```sh
+docker compose up --build
 ```
 
-This uses the unchanged Academy files with a separate project adapter.
-Database migrations run automatically. Local admin credentials are stored
-in `docker/academy/.runtime/.env`.
+The init service creates project migrations, applies all database migrations and
+collects static files. Web and worker start only after init succeeds. No separate
+initialization command is needed. The database and media use persistent volumes.
 
-Open the admin page at http://127.0.0.1:8001/admin/.
+Backend: http://127.0.0.1:8000/api/csrf/
+Admin: http://127.0.0.1:8000/admin/
 
-After code changes, run the preparation script again before rebuilding.
-See [Docker setup details](docker/academy/README.md) for configuration notes.
+To upload videos, create an administrator in a second terminal:
 
-To stop the services without deleting data:
-
-```powershell
-.\scripts\academy.ps1 stop
+```sh
+docker compose exec web python manage.py createsuperuser
 ```
+
+This uses email and password; there is no username field.
 
 ## Tests
 
-With the containers running:
+Run in a second terminal while the services are running:
 
-```powershell
-.\scripts\academy.ps1 exec -T web python manage.py check
-.\scripts\academy.ps1 exec -T web python manage.py makemigrations --check --dry-run
-.\scripts\academy.ps1 exec -T web python manage.py test --settings=core.academy_test_settings --noinput
-.\scripts\academy.ps1 exec -T web python manage.py smoke_hls
+```sh
+docker compose exec web python manage.py check
+docker compose exec web python manage.py makemigrations --check --dry-run
+docker compose exec web python manage.py migrate --check
+docker compose exec web python manage.py test --noinput
+docker compose exec web python manage.py smoke_hls
 ```
 
-The HLS smoke test creates and removes temporary test data.
-Use it only in a local development environment.
+The HLS smoke test creates and removes temporary data. Use it only locally.
+Stop services without deleting data with `docker compose stop`; start them again
+with `docker compose up --build`. Do not delete volumes to fix startup errors.
 
-## About
-
-This repository contains the backend for my Videoflix project, developed during my training at Developer Akademie.
-
-The frontend is maintained in a separate project.
+The unchanged Academy files are extended by `docker-compose.override.yml`.
+See [Docker details](docker/academy/README.md) and
+[test evidence and limitations](docs/ABGABE_CHECK.md).

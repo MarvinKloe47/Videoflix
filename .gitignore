@@ -21,3 +21,7 @@ staticfiles/
 .ruff_cache/
 .vscode/
 /Videoflix_frontend/
+
+# Mentor submission: Django creates project migrations inside the init container.
+/auth_app/migrations/[0-9]*.py
+/video_app/migrations/[0-9]*.py

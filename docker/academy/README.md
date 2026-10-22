@@ -1,120 +1,64 @@
-# Academy Docker integration
+# Academy Docker setup
 
-This directory contains unchanged upstream references and our separate project adapter.
-
-## Upstream snapshot
+## Original files
 
 Source: https://github.com/Developer-Akademie-Backendkurs/material.videoflix-docker-files
 
-Commit: `4796b17de2b7656d62b6904d4d04e5b74cbc41c6` (2025-11-05).
-Retrieved and tested on 2026-10-22.
+Snapshot: `4796b17de2b7656d62b6904d4d04e5b74cbc41c6`.
+All six originals remain byte-identical in `original/`; hashes are recorded in
+`upstream.json`. Root `backend.Dockerfile`, `backend.entrypoint.sh` and
+`docker-compose.yml` are exact copies of their respective originals.
+The public original environment template is reference data, never runtime input.
 
-All six upstream files are in `original/`, including the original README and
-public example environment. Their Git blob SHA-1, SHA-256 and sizes are recorded
-in `upstream.json`. `.gitattributes` disables line-ending conversion for these
-references. `scripts/prepare_academy.py` verifies the Git blob hashes before use.
-The example credentials in upstream `.env.template` are public reference data;
-the runtime never uses them. Random local credentials are generated separately.
+## Project extension
 
-## Why the original entrypoint needs an adapter
+Compose automatically loads the root `docker-compose.override.yml`.
+The original Dockerfile builds directly from the repository and installs Python,
+FFmpeg/FFprobe and dependencies. No host Python, staging script or PowerShell
+wrapper is involved. Its actual base is Python 3.12 Alpine, despite the unchanged
+upstream label mentioning Python 3.14.
 
-The unchanged Dockerfile builds successfully with our unchanged requirements.
-It really uses Python 3.12 Alpine, despite its descriptive label mentioning 3.14.
-It includes FFmpeg, FFprobe and PostgreSQL client libraries.
+The extension chooses our `entrypoint.sh` because the original bootstrap expects
+`User.username`, which our email-based User does not have. A single init service
+runs before Gunicorn and a separate foreground RQ worker. Admin creation is
+optional through Django's built-in `createsuperuser`; no bootstrap credentials
+or separate Python initialization script are needed.
 
-The unchanged entrypoint was executed against an isolated PostgreSQL database.
-Collectstatic and all initial migrations succeeded. It then exited with
-`FieldError: Cannot resolve keyword 'username' into field`: our User deliberately
-has no username field and logs in by email. Changing this User model would risk
-breaking the working authentication contract.
+The init service waits for PostgreSQL and runs:
 
-The tested submission profile therefore merges the original Compose file with
-`compose.compat.yaml`, a clearly separate extension. The original entrypoint stays
-in the image unchanged; the extension selects our own entrypoint explicitly.
-
-## Own files
-
-- `compose.compat.yaml`: original services db/redis/web plus migrate and worker;
-  separate lifecycle, health dependencies, image snapshots rather than host binds,
-  localhost port 8001, project-scoped container names, PostgreSQL 18/Redis 8 major tags.
-- `entrypoint.sh`: bounded database readiness, migrate/collectstatic/bootstrap as a
-  one-shot service; Gunicorn and RQ each run as their container's foreground process.
-  No automatic generation of new migrations during regular startup.
-- `bootstrap_admin.py`: uses DJANGO_SUPERUSER_EMAIL and DJANGO_SUPERUSER_PASSWORD;
-  existing credentials are retained. DJANGO_SUPERUSER_USERNAME remains in the env
-  template for compatibility but does not become a field in our email-based User.
-- `.env.example`: preserves the Academy variable names; safe placeholders and local
-  console-mail settings. No runtime password or secret is checked in.
-- `core/academy_settings.py`: isolated settings module for REDIS_LOCATION,
-  CSRF_TRUSTED_ORIGINS, EMAIL_USE_SSL and the Academy static volume `/app/static`.
-  Existing core/settings.py and local CACHE_URL/FRONTEND_ORIGINS behavior are unchanged.
-- `core/academy_test_settings.py`: existing isolated test settings plus the adapter's
-  path/origin/SSL values. Cache and mail remain isolated during unit tests.
-- `scripts/prepare_academy.py`: verifies originals, recreates ONLY its generated
-  `.runtime/context`, stages allowlisted project sources and exact upstream build
-  files, and creates `.runtime/.env` only if absent. Existing root `.env` is untouched.
-- `scripts/academy.ps1`: fixed Compose project and explicit file/env/path selection;
-  forwards Docker CLI arguments, including `-d`, unchanged.
-
-The root `.dockerignore` only gained an exclusion for `.runtime` so that its local
-credentials and generated context cannot enter a later build of the old profile.
-The official `.dockerignore` is unchanged and used in the staged Academy build.
-No new Python runtime dependency was required. Django's existing Redis cache and
-local static route work with the Academy variable/volume adapter.
-
-## Reproduce on Windows / PowerShell
-
-Run from the repository root; Python 3 and Docker Desktop Linux containers are
-required. Docker Compose >= 2.24.4 is required for `!override` / `!reset`.
-
-```powershell
-python scripts/prepare_academy.py
-.\scripts\academy.ps1 config --quiet
-.\scripts\academy.ps1 up --build -d --wait --wait-timeout 120
-.\scripts\academy.ps1 ps --all
-.\scripts\academy.ps1 exec -T web python manage.py check
-.\scripts\academy.ps1 exec -T web python manage.py makemigrations --check --dry-run
-.\scripts\academy.ps1 exec -T web python manage.py migrate --check
-.\scripts\academy.ps1 exec -T web python manage.py test --settings=core.academy_test_settings --noinput
-.\scripts\academy.ps1 exec -T web python manage.py smoke_hls
+```sh
+python manage.py makemigrations auth_app video_app --noinput
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
 ```
 
-Admin: http://127.0.0.1:8001/admin/; CSRF API: http://127.0.0.1:8001/api/csrf/.
-Local admin credentials are ONLY in ignored `docker/academy/.runtime/.env`.
-The existing frontend still uses port 8000; this isolated backend test does not
-silently redirect that working frontend to the new database. To test it against
-Academy instead, configure its API port to 8001 separately, or use Academy port
-8000 after explicitly stopping the old backend. The two stacks cannot bind the
-same host port simultaneously.
+Per mentor feedback, each project migration directory contains only `__init__.py`
+in the repository. Django generates initial migrations in the shared source bind
+mount before admin/JWT migrations resolve the custom User. Generated project
+migrations are ignored by Git and shared by web, worker, tests and later starts.
+Do not delete them from an initialized setup. The checkout must be writable;
+on Linux generated files may belong to the container's root user. This fresh-schema
+approach must not be used to upgrade a database with the old migration history.
 
-After source changes, rerun prepare before `up --build`: the image uses a staged
-snapshot, not a live source bind. Changing the local runtime env needs `up -d`
-to recreate affected containers. Re-running prepare preserves that env file.
+`core.academy_settings` maps official Redis/CORS/email names and the static volume
+path while retaining application security settings. The isolated test settings
+remain available. The default project is `videoflix-submission`; existing
+`videoflix` and `videoflix-academy` volumes are not mounted. PostgreSQL 18 and Redis 8
+major tags, readiness checks and a one-shot init gate provide a controlled startup.
+Major tags remain mutable; this is not an image-digest lock.
 
-Stop/start without deleting data:
+## Operation
 
-```powershell
-.\scripts\academy.ps1 stop
-.\scripts\academy.ps1 up -d --wait --wait-timeout 120
-```
+Follow the root README: copy `.env.example` to `.env`, set SECRET_KEY and
+DB_PASSWORD, then run `docker compose up --build`.
+Default host port is 8000. If an older stack occupies it, stop that stack without
+removing volumes, or set HTTP_PORT to a free port in the new `.env`.
+Do not reuse old PostgreSQL volumes or an old Compose project name for this setup.
+For multiple fresh checkouts use a distinct COMPOSE_PROJECT_NAME environment
+variable and HTTP_PORT for each.
 
-All network and volume names are scoped to `videoflix-academy`. No external volumes
-are reused. Existing `videoflix_*` volumes belong to the old stack and are not
-mounted here. PostgreSQL 16 data is not opened using PostgreSQL 18; any intended
-future data transfer needs an explicit dump/restore, not a volume substitution.
-The major-version image tags remain mutable; upstream commit pinning freezes
-reference files, not OS packages or image registries. The tested runtime versions
-are recorded in docs/ABGABE_CHECK.md.
-
-## Submission choice
-
-Use **original/docker-compose.yml + compose.compat.yaml**, invoked through the
-wrapper above, for the Academy submission. Keep all original files byte-identical
-and include the separate adapter and preparation scripts. The existing root
-Dockerfile/compose.yaml remain an independent local profile.
-
-The unextended original entrypoint is NOT compatible with our email-based User.
-This is an explicit, tested limitation, not an assertion that the unmodified
-upstream stack ran successfully. The extended Academy profile passed all 63 backend
-tests and real HLS conversion, including a complete stop/start with persistent data.
-For remaining non-Docker submission points, see docs/ABGABE_CHECK.md.
+The source bind mount exposes edits to containers; restart web/worker to load
+changed Python code. Rebuild after dependency changes. Environment values and
+volumes are retained. Stop with `docker compose stop`.
+Host-platform test coverage is recorded in `../../docs/ABGABE_CHECK.md`;
+Linux-container tests alone do not prove every host platform.
