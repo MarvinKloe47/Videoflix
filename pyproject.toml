@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = ["env", "Videoflix_frontend", "docker/academy/original", "docker/academy/.runtime"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+# Preserve historical generated migrations; all other rules still apply.
+[tool.ruff.lint.per-file-ignores]
+"auth_app/migrations/0001_initial.py" = ["E501"]
+"video_app/migrations/0001_initial.py" = ["E501"]
+"video_app/migrations/0003_video_hls_job_id_alter_video_thumbnail_file_and_more.py" = ["I001"]
