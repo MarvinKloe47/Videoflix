@@ -68,12 +68,8 @@ With the containers running:
 The HLS smoke test creates and removes temporary test data.
 Use it only in a local development environment.
 
-## Backend-only repository
+## About
 
-The Academy frontend is maintained separately and is not included here.
-Technical details are in [architecture.md](docs/architecture.md), and test
-records and open points are in [ABGABE_CHECK.md](docs/ABGABE_CHECK.md).
+This repository contains the backend for my Videoflix project, developed during my training at Developer Akademie.
 
-Developed as part of the Developer Akademie GmbH training programme.
-Course email assets and their license are documented in
-[email references](docs/email_reference/README.md).
+The frontend is maintained in a separate project.
