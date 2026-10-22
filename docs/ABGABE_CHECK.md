@@ -151,7 +151,7 @@ ERFUELLT bezieht sich jeweils auf den in der Zeile genannten Umfang.
 | Footer/Rechtsseiten responsiv und erreichbar | ERFUELLT | Separates Demo-Frontend | Chromium bei 390px; Attribution ergaenzt |
 | Fertige verstaendliche Rechtsinhalte | TEILWEISE | Separates privacy/imprint | Demo-Status ehrlich markiert; keine echten Angaben geliefert |
 | Git-Sicherheit und kleine Commits | ERFUELLT | .gitignore, .gitattributes, Git-Historie | Index-/Historienpruefung, keine echten Runtime-Secrets gestaged |
-| GitHub-Abgabe | TEILWEISE | origin/main | Commit-/Push-Ergebnis im Abschlussbericht; keine Einreichung durch die Akademie bestaetigt |
+| GitHub-Repository und Push | ERFUELLT | origin/main | Code-Stand 66f0ec3 erfolgreich gepusht und per ls-remote verifiziert; keine fachliche Akademie-Abnahme behauptet |
 
 ## Neue Tests nach dem Cleanup
 
@@ -205,12 +205,33 @@ Runtime-.env, virtuelle Umgebungen, Medien, HLS, Frontend und Caches bleiben aus
 Git und Build-Kontext ausgeschlossen. Vor jedem Commit werden Status, gezielter
 Index-Diff und diff --check geprueft. origin/main war vor den neuen Commits identisch
 mit HEAD; unerwartete Remote-Aenderungen werden nicht automatisch integriert.
-Nach den getrennten Commits werden die relevanten Tests erneut ausgefuehrt.
-Der Push wird nur bei bestandenen Tests und ohne offene aktuelle Secret-Befunde
-versucht; das tatsaechliche Ergebnis steht im Abschlussbericht.
+Nach den sieben getrennten Code-/Konfigurationscommits wurden die relevanten
+Tests erneut erfolgreich ausgefuehrt. Der Push bis 66f0ec3 wurde durchgefuehrt und
+der Remote-Hash per ls-remote bestaetigt. Dieses abschliessende Evidenzupdate
+aendert ausschliesslich die Dokumentation; der Anwendungscode bleibt der getestete.
 
 **Backend-Empfehlung:** Das gepruefte Backend samt getrenntem Akademie-Adapter kann
 technisch zur Backend-Durchsicht eingereicht werden. Fuer die uneingeschraenkte
 Bewertung aller PDF-Punkte bleibt das Projekt **NICHT ABGABEBEREIT**, solange die
 Rechtsinhalte der Demo nicht fertiggestellt sind und die genannten externen
 Mailnachweise fehlen. Ein erfolgreicher Push ersetzt keine fachliche Abnahme.
+
+
+## Nachweis nach den Code-Commits
+
+- Lokal erneut 63/63 Tests ohne Skips: 25.286s, check/Migrationspruefung bestanden.
+- Bisheriges Docker-Profil erneut 63/63: 1.179s; echter HLS-Smoke PASS.
+- Akademie-Profil erneut 63/63: 0.848s; echter HLS-Smoke PASS.
+- Frontend erneut 7/7 und Syntaxcheck bestanden; vollstaendiger Chromium-Lauf
+  einschliesslich drei dekodierter Qualitaeten und Pause/Play/Seek/Vollbild PASS.
+- Ruff und AST-/Git-Pfadpruefung bestanden: 42 Dateien, 207 Funktionen <=14 Zeilen.
+- Alle sechs committed Original-BLOBs entsprechen exakt den Upstream-Git-Hashes.
+- Alle 109 Frontenddateien entsprechen weiterhin der finalen externen Sicherung.
+- 85 versionierte Dateien auf Runtime-Pfade und aktuelle starke Secrets geprueft:
+  keine Treffer; keine Werte im Bericht ausgegeben.
+- Vor dem Push Remote unveraendert bei b396bfe; sieben eigene Commits voraus,
+  kein fremder Commit. Push nach main erfolgreich. Gepruefter Code-Remote:
+  66f0ec342e5062652779301b94f9c3603f6ff5c4.
+
+Die vollstaendige Commitliste einschliesslich dieses Dokumentationsabschlusses
+und der endgueltige Remote-Hash stehen im Abschlussbericht bzw. git log.
