@@ -6,8 +6,11 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.tokens import UntypedToken
+
+from .authentication import CookieJWTAuthentication
 
 
 @override_settings(
@@ -39,7 +42,6 @@ class AuthenticationCookieTests(TestCase):
             "/api/login/",
             {"email": self.email, "password": password or self.password},
             format="json",
-            **self.get_csrf_header(),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return response
@@ -132,10 +134,10 @@ class AuthenticationCookieTests(TestCase):
         response = self.client.post("/api/token/refresh/", {}, **self.get_csrf_header())
         self.assertEqual(response.status_code, 401)
 
-    def test_refresh_and_logout_require_csrf(self):
+    def test_invalid_refresh_and_logout_without_csrf_are_rejected(self):
         self.client.cookies["refresh_token"] = "invalid"
-        self.assertEqual(self.client.post("/api/token/refresh/", {}).status_code, 403)
-        self.assertEqual(self.client.post("/api/logout/", {}).status_code, 403)
+        self.assertEqual(self.client.post("/api/token/refresh/", {}).status_code, 401)
+        self.assertEqual(self.client.post("/api/logout/", {}).status_code, 401)
 
     def test_duplicate_registration_error_is_generic(self):
         response = self.post_register(self.registration_data(email=self.email))
@@ -202,14 +204,16 @@ class AuthenticationCookieTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["message"], "Account successfully activated.")
 
-    def test_login_rejects_inactive_user_wrong_password_and_missing_csrf(self):
+    def test_login_rejects_inactive_user_wrong_password_and_missing_data(self):
         inactive = self.create_user("inactive@example.com", self.password, False)
-        self.assertEqual(self.client.post("/api/login/", {}).status_code, 403)
+        self.assertEqual(self.client.post("/api/login/", {}).status_code, 400)
         for email, password in ((inactive.email, self.password), (self.email, "wrong")):
             response = self.csrf_post(
                 "/api/login/", {"email": email, "password": password}
             )
             self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.data["message"],
+                             "Ungültige Zugangsdaten oder Konto nicht aktiviert.")
 
     def test_login_sets_access_and_refresh_cookies(self):
         response = self.login()
@@ -218,12 +222,12 @@ class AuthenticationCookieTests(TestCase):
         self.assert_jwt_cookie(response, "access_token", "/", 300)
         self.assert_jwt_cookie(response, "refresh_token", "/api/", 86400)
 
-    def test_logout_requires_csrf_token(self):
+    def test_logout_accepts_request_without_csrf_header(self):
         self.login()
 
         response = self.client.post("/api/logout/", {}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_logout_requires_refresh_cookie(self):
         response = self.client.post(
@@ -323,3 +327,33 @@ class AuthenticationCookieTests(TestCase):
         weak = self.confirm_reset(uid, token, "123", "123")
         self.assertEqual(mismatch.status_code, 400)
         self.assertEqual(weak.status_code, 400)
+
+    def test_refresh_without_csrf_or_admin_session(self):
+        self.login()
+        self.client.cookies["access_token"] = "expired-access-token"
+        response = self.client.post("/api/token/refresh/", {}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assert_jwt_cookie(response, "access_token", "/", 300)
+        self.assertNotIn("sessionid", self.client.cookies)
+        self.assertNotIn("csrftoken", self.client.cookies)
+
+    def test_complete_frontend_flow_without_admin_or_csrf(self):
+        self.post_register(self.registration_data())
+        uid, token = self.activation_params_from_mail()
+        activated = self.client.get(f"/api/activate/{uid}/{token}/")
+        self.assertEqual(activated.status_code, 200)
+        self.email, self.password = "new@example.com", "NewSecurePass123!"
+        self.login()
+        self.assertNotIn("sessionid", self.client.cookies)
+        self.assertNotIn("csrftoken", self.client.cookies)
+        self.assertEqual(self.client.get("/api/video/").status_code, 200)
+        self.assertEqual(self.client.post("/api/token/refresh/", {}).status_code, 200)
+        self.assertEqual(self.client.post("/api/logout/", {}).status_code, 200)
+        self.assertEqual(self.client.get("/api/video/").status_code, 401)
+
+    def test_other_authenticated_writes_still_require_csrf(self):
+        self.login()
+        request = APIRequestFactory(enforce_csrf_checks=True).post("/api/write/", {})
+        request.COOKIES["access_token"] = self.client.cookies["access_token"].value
+        with self.assertRaises(PermissionDenied):
+            CookieJWTAuthentication().authenticate(request)

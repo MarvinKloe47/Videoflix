@@ -3,9 +3,9 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from .models import Video
+from ..models import Video
+from ..utils import get_hls_asset, get_public_video, validate_segment_name
 from .serializers import VideoSerializer
-from .utils import get_hls_asset, get_public_video, validate_segment_name
 
 
 class VideoListView(generics.ListAPIView):

@@ -17,6 +17,8 @@ case "${1:-web}" in
         # Create the custom User's initial migration before resolving admin/JWT deps.
         python manage.py makemigrations auth_app video_app --noinput
         python manage.py migrate --noinput
+        # The email-based administrator can only be created after its table exists.
+        python manage.py bootstrap_admin
         python manage.py collectstatic --noinput
         ;;
     worker)

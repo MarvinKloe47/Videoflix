@@ -21,16 +21,25 @@ upstream label mentioning Python 3.14.
 The extension chooses our `entrypoint.sh` because the original bootstrap expects
 `User.username`, which our email-based User does not have. A single init service
 runs before Gunicorn and a separate foreground RQ worker. Admin creation is
-optional through Django's built-in `createsuperuser`; no bootstrap credentials
-or separate Python initialization script are needed.
+available through Django's built-in `createsuperuser` or the configured bootstrap
+command inside the init container. No host initialization script is required.
 
 The init service waits for PostgreSQL and runs:
 
 ```sh
 python manage.py makemigrations auth_app video_app --noinput
 python manage.py migrate --noinput
+python manage.py bootstrap_admin
 python manage.py collectstatic --noinput
 ```
+
+`DJANGO_SUPERUSER_EMAIL` and `DJANGO_SUPERUSER_PASSWORD` configure automatic admin
+creation. New credentials are validated with Django's email/password validators;
+no default or random password is created. Both empty means skip with a message;
+only one supplied fails initialization. An existing active superuser is retained
+without changing its password. A conflicting regular or inactive account causes
+a clear error and is never promoted/reactivated. Choose another email or resolve
+that account deliberately. Repeated starts do not create duplicate users.
 
 Per mentor feedback, each project migration directory contains only `__init__.py`
 in the repository. Django generates initial migrations in the shared source bind

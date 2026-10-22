@@ -1,6 +1,83 @@
 # Videoflix submission check
 
-## Current submission profile
+## Second mentor feedback: current working changes
+
+The mentor reports that Docker startup, video management, required fields and
+email delivery already work. This update addresses automatic admin creation,
+User admin registration, the supplied frontend's no-CSRF-header contract and
+API subpackages. Earlier evidence below describes the previous submission and
+is historical where it refers to mandatory login/refresh/logout CSRF headers.
+No commit or push has been made for this update.
+
+### Implemented changes
+
+- API urls/views/serializers now live in auth_app/api and video_app/api. Models,
+  services, authentication, tasks and signals remain outside these packages.
+  All 14 existing URL names/paths, response bodies and video processing are kept.
+- The init service runs bootstrap_admin after migrate and before collectstatic.
+  DJANGO_SUPERUSER_EMAIL and DJANGO_SUPERUSER_PASSWORD are explicit optional
+  credentials. Both empty means a clear skip message; partial credentials fail.
+  New credentials use Django validation and password hashing. Existing active
+  superusers keep their ID/password; regular or inactive accounts are never
+  promoted or reactivated and cause an explanatory configuration error.
+- The custom User is registered with email-based Django UserAdmin/forms. Search,
+  editing, adding, password changes, deactivation and deletion are supported.
+- Only explicit csrf_protect decorators on login, refresh and logout are removed.
+  Admin/session CSRF and CookieJWTAuthentication for other protected writes remain.
+  HttpOnly is NOT a CSRF defense. SameSite and CORS are not equivalent substitutes.
+  Login CSRF and same-site forgery risks remain at the exempt endpoints; see
+  architecture.md for the explicit compatibility/security tradeoff.
+- JWT lifetimes, HttpOnly/Secure/SameSite/path attributes, refresh validation,
+  blacklist/session revocation and password-change checks are unchanged.
+- API movement is checked against the previous AST (excluding imports/docstrings
+  and the three intended decorators). This also verifies exact response strings.
+
+### Executed verification
+
+Tested in a new local clone of c239d69 plus the uncommitted working changes, with
+new isolated Docker volumes and configured test-only admin credentials. Project:
+videoflix-mentor2-4fbb0ae0, host port 8013. No existing volumes were reused/deleted.
+The first build/up used the unchanged Academy Dockerfile and automatic override.
+Initialization generated the custom-User migration before dependent migrations,
+created the administrator and completed before web/worker startup.
+The test stack was stopped after verification; all its volumes were retained.
+
+The existing 63 tests remain, with three CSRF expectations updated to the mentor's
+new contract. New tests cover bootstrap behavior, admin permissions/CRUD/passwords,
+no-header authentication, other-write CSRF, deactivated JWT access and API routes.
+
+| Check | Result |
+|---|---|
+| Default full backend suite | 85 passed, 17.086s, no skips (final response-text rerun) |
+| Final bootstrap configuration-message verification | All 7 bootstrap tests passed again |
+| Django check and migration checks | Passed; no model changes |
+| Real Redis/RQ/FFmpeg/HLS smoke | PASS: upload, cache, worker, all 3 qualities, auth |
+| pip dependency check | Passed |
+| Bootstrap repeat and full stack restart | One admin; identical ID/password hash |
+| Existing admin credentials after restart | Real HTTP login without CSRF/session passed |
+| Migration files after restart | Hashes unchanged |
+| Browser frontend-style protocol | Chromium cross-origin registration/activation/login/videos/refresh/logout passed |
+| Browser cookie/storage checks | HttpOnly cookies; no prior admin/CSRF session; no Local Storage JWTs |
+| Real Django admin in Chromium | Login, search, edit, deactivate, rejected member login, delete passed |
+| Browser JavaScript errors | None in completed run |
+| Ruff and DA function-size check | Passed; 49 Python files, 224 functions <=14 lines |
+| Official Docker references and three root copies | Exact hashes preserved |
+
+The browser protocol test sends real API requests from a real loopback origin,
+with credentials included and no CSRF header. It is a protocol harness, not a full
+run of the unchanged Academy frontend UI. Initial harness-origin/cookie-filter/
+selector issues were corrected; no API responses were mocked. A final source
+comparison caught and corrected a Windows encoding error in moved German response
+strings; an explicit exact-text assertion was added before the final suite rerun.
+
+Not executed here: external SMTP/provider rendering, native macOS/Linux hosts,
+or the complete unchanged Academy frontend UI. The mentor's successful email
+check is user-reported evidence, not a new SMTP test by this run. No frontend
+files or application models/migrations were changed. No Academy approval claimed.
+
+## Previous direct-Compose test record
+
+## Previous direct-Compose submission profile
 
 Reviewed on 2026-10-22. Mentor feedback supersedes the previous host-script setup.
 Use the root Academy files plus the automatically loaded project override.

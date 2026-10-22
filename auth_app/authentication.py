@@ -1,4 +1,4 @@
-"""Cookie sessions require CSRF on writes and reject blacklisted refresh sessions."""
+"""Protect authenticated writes with CSRF and reject revoked JWT sessions."""
 
 from django.middleware.csrf import CsrfViewMiddleware
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied

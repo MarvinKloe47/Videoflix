@@ -42,13 +42,22 @@ initialization command is needed. The database and media use persistent volumes.
 Backend: http://127.0.0.1:8000/api/csrf/
 Admin: http://127.0.0.1:8000/admin/
 
-To upload videos, create an administrator in a second terminal:
+For automatic admin creation, set both `DJANGO_SUPERUSER_EMAIL` and
+`DJANGO_SUPERUSER_PASSWORD` in `.env` before startup. Existing admin passwords
+are retained. With both values empty, startup prints a clear skip message.
+With only one value set, initialization fails with a configuration error.
+Alternatively, create an administrator in a second terminal:
 
 ```sh
 docker compose exec web python manage.py createsuperuser
 ```
 
 This uses email and password; there is no username field.
+Users can be searched, edited, deactivated and deleted in the Django admin.
+
+Login, refresh and logout accept the supplied frontend without a CSRF header.
+Other authenticated writes and Django admin retain CSRF protection. See the
+[security notes](docs/architecture.md#csrf-and-frontend-compatibility) for the tradeoff.
 
 ## Tests
 

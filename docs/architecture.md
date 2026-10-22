@@ -9,11 +9,14 @@ database 1 caches public video metadata for 60 seconds. Authentication and curre
 visibility are checked before metadata/file delivery; cache entries are not HTTP
 responses and contain no JWTs. Cache failures fall back to the database.
 
-`auth_app` owns the email-based User and API serializers/views. Dictionary helpers
-live in utils.py; views construct Responses. CookieJWTAuthentication checks token
+`auth_app` owns the email-based User; API serializers/views/URLs are in `auth_app/api/`.
+Video API modules are in `video_app/api/`. Services, models, tasks, signals and
+shared helpers stay outside api/. Dictionary helpers live in utils.py; views
+construct Responses. CookieJWTAuthentication checks token
 validity, password revocation, refresh-session blacklist and CSRF for writes.
 Refresh separately checks active user/password state. Logout blacklists the session
-and expires both cookies. Login/refresh/logout also require CSRF when unauthenticated.
+and expires both cookies. Login/refresh/logout are explicit CSRF exceptions for
+the supplied frontend; other protected writes retain authentication-level CSRF.
 
 services.py builds activation/reset links and multipart messages from escaped HTML
 and plain-text templates. Logo bytes are attached inline by CID. Message design
@@ -39,8 +42,12 @@ The root Academy Dockerfile, Compose file and original entrypoint are unchanged
 copies of the upstream snapshot. Compose automatically loads our separate override,
 which builds directly from the checkout. One init container generates project
 migrations, migrates PostgreSQL and collects static files before web/worker start.
-The own entrypoint bypasses the upstream username-based admin bootstrap; optional
-administrators are created with Django's built-in createsuperuser command.
+The own entrypoint bypasses the upstream username-based admin bootstrap and calls
+the email-aware bootstrap_admin management command after migrate. Explicit env
+credentials create an active superuser once; existing passwords/roles are retained.
+Missing/partial/conflicting credentials are handled explicitly. Django's built-in
+createsuperuser remains available. Email-specific admin forms inherit Django's
+password handling and permissions; the User admin exposes account management.
 
 The mentor requires empty project migration packages in the submitted repository.
 Only their __init__.py files are versioned. Initial migrations are generated inside
@@ -63,8 +70,9 @@ runtime/media/cache files. Public deployment remains a separate configuration st
 ## Frontend connection and API extensions
 
 Frontend requests must use `credentials: 'include'`, including playlist and segment
-requests. For login, refresh and logout, first request `/api/csrf/` with credentials,
-then send the returned `csrfToken` as `X-CSRFToken`. Tokens remain in HttpOnly cookies;
+requests. Login, refresh and logout do not require a CSRF header or a prior admin
+session. `/api/csrf/` remains available for protected writes and existing clients.
+Tokens remain in HttpOnly cookies;
 the frontend must not copy JWTs into Local Storage. SameSite=Lax requires the same
 site: do not mix localhost with 127.0.0.1. Allowed origins are configured through
 FRONTEND_ORIGINS in the root settings or CSRF_TRUSTED_ORIGINS in the Academy adapter.
@@ -87,3 +95,22 @@ Staff video uploads use `/admin/video_app/video/add/` with an MP4 and a JPG/PNG/
 thumbnail. Frontend activation/reset URLs are set with FRONTEND_ACTIVATION_URL and
 FRONTEND_PASSWORD_RESET_URL. Local mail uses the console backend. External SMTP
 requires EMAIL_BACKEND and EMAIL_* settings; never version real credentials.
+
+## CSRF and frontend compatibility
+
+The supplied Academy frontend does not send X-CSRFToken. Only the explicit
+csrf_protect decorators on login, token refresh and logout were removed.
+Those APIViews already disable authentication classes, so an expired access
+cookie does not block refresh and no session login is required. Django's global
+CsrfViewMiddleware, admin form protection and CookieJWTAuthentication.enforce_csrf
+for other authenticated writes remain enabled. Read-only protected video/HLS
+requests still require a valid, active, non-revoked JWT and public visibility.
+
+This compatibility exception weakens CSRF protection at those three endpoints.
+HttpOnly prevents JavaScript from reading a cookie; it does not prevent a browser
+from sending it with a forged request. SameSite=Lax limits cross-site cookie
+sending but does not cover every same-site attack or login CSRF. CORS restricts
+browser access to responses, not every forged request. Session blacklist checks,
+password-change revocation, Secure outside DEBUG, cookie paths and lifetimes are
+unchanged. No claim of equivalent CSRF protection is made. Production hardening
+should coordinate frontend CSRF headers and re-enable these endpoint checks.

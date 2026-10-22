@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from .models import Video
-from .utils import cached_video_metadata
+from ..models import Video
+from ..utils import cached_video_metadata
 
 
 class VideoSerializer(serializers.ModelSerializer):

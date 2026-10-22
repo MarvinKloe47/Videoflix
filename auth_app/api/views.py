@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,17 +10,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import (
-    PasswordResetConfirmSerializer,
-    PasswordResetRequestSerializer,
-    RegistrationSerializer,
-)
-from .services import (
+from ..services import (
     get_user_by_uid,
     send_activation_email,
     send_password_reset_email,
 )
-from .utils import (
+from ..utils import (
     activate_user,
     blacklist_refresh_token,
     expire_jwt_cookie,
@@ -31,6 +26,11 @@ from .utils import (
     set_access_cookie,
     set_refresh_cookie,
     validate_refresh_user,
+)
+from .serializers import (
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegistrationSerializer,
 )
 
 
@@ -151,8 +151,8 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Your Password has been successfully reset."})
 
 
-@method_decorator(csrf_protect, name="dispatch")
 class TokenRefreshView(APIView):
+    """Refresh from the cookie without requiring the frontend to read a JWT."""
     # An expired access token must not prevent validation of the refresh cookie.
     authentication_classes = []
     permission_classes = []
@@ -169,9 +169,8 @@ class TokenRefreshView(APIView):
             return invalid_refresh_token_response()
 
 
-@method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
-    # CSRF protection also applies before a user is authenticated.
+    # The supplied frontend sends cookies without a CSRF header on this endpoint.
     authentication_classes = []
     permission_classes = []
 
@@ -216,8 +215,8 @@ class UserInfoView(APIView):
         )
 
 
-@method_decorator(csrf_protect, name="dispatch")
 class LogoutView(APIView):
+    # This frontend endpoint is CSRF-exempt; revoke the session and expire cookies.
     authentication_classes = []
     permission_classes = []
 
