@@ -1,3 +1,8 @@
+"""Hold the source row lock through conversion to serialize competing RQ jobs.
+
+PROCESSING remains uncommitted until READY/FAILED; readers only serve READY assets.
+"""
+
 import json
 import logging
 import shutil

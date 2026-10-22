@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from django.apps import AppConfig
 
 
@@ -6,4 +8,5 @@ class VideoAppConfig(AppConfig):
     name = 'video_app'
 
     def ready(self):
-        import video_app.signals  # noqa: F401
+        # Import receivers only after Django has populated the app registry.
+        import_module("video_app.signals")

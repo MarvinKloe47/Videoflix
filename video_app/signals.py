@@ -1,3 +1,5 @@
+"""Commit hooks prevent rolled-back uploads from spawning jobs or evicting cache."""
+
 import logging
 import uuid
 

@@ -43,14 +43,6 @@ class HLSSegmentView(APIView):
         return FileResponse(open(file_path, "rb"), content_type="video/MP2T")
 
 
-
-
-
-
-
-
-
-
 class VideoThumbnailView(APIView):
     permission_classes = [IsAuthenticated]
 
