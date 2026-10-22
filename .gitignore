@@ -12,3 +12,12 @@ staticfiles/
 .env.*
 !.env.example
 .pytest_cache/
+
+# Academy upstream template is a public reference, never a runtime secret file.
+!docker/academy/original/.env.template
+/docker/academy/.runtime/
+
+# Local development artifacts and the separately backed-up Academy frontend.
+.ruff_cache/
+.vscode/
+/Videoflix_frontend/

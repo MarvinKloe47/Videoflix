@@ -1,0 +1,82 @@
+# OWN extension: merge AFTER original/docker-compose.yml; never edit originals.
+# Paths are relative to the repository root via --project-directory.
+x-academy-app: &app
+  build:
+    context: ./docker/academy/.runtime/context
+    dockerfile: backend.Dockerfile
+  image: videoflix-academy:local
+  env_file: !override
+    - ./docker/academy/.runtime/.env
+  environment:
+    DJANGO_SETTINGS_MODULE: core.academy_settings
+    DB_HOST: db
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_LOCATION: redis://redis:6379/1
+    MEDIA_ROOT: /app/media
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONPATH: /app
+  entrypoint: ["/bin/sh", "/app/academy/entrypoint.sh"]
+  volumes: !override
+    - videoflix_media:/app/media
+    - videoflix_static:/app/static
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: !reset null
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:8-alpine
+    container_name: !reset null
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  web:
+    <<: *app
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:${ACADEMY_HTTP_PORT:-8001}:8000"
+    command: ["web"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/csrf/', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully

@@ -1,0 +1,42 @@
+{
+  "repository": "https://github.com/Developer-Akademie-Backendkurs/material.videoflix-docker-files",
+  "commit": "4796b17de2b7656d62b6904d4d04e5b74cbc41c6",
+  "files": [
+    {
+      "path": ".dockerignore",
+      "git_blob_sha1": "db7d8d7f30f08e899384db5fd5fe155687dca2a8",
+      "size": 462,
+      "sha256": "91e7e30602422144b51f2da358c7a9c491beaad5608c9c6d92fe6a43805cf842"
+    },
+    {
+      "path": ".env.template",
+      "git_blob_sha1": "f767d9bd33a89e5909860f7eddae963ab7227aca",
+      "size": 697,
+      "sha256": "4e51d59fcc120458c09a0ab8a681e6f664eca53ad6a4d3a83a89a51ecde9f32a"
+    },
+    {
+      "path": "README.md",
+      "git_blob_sha1": "e60674098cd1be936870dfb8c2c36cf8c020d391",
+      "size": 13307,
+      "sha256": "d4dbbe3f96ae4dfacd756b5e0227c625485543348c8b3cf05283b21c7afc1036"
+    },
+    {
+      "path": "backend.Dockerfile",
+      "git_blob_sha1": "33e4a974baebeb1cd30d45a03d195475c4863d38",
+      "size": 591,
+      "sha256": "328534bf651cbdae703ee7be570a9ac0e18530e7d32cf61d23d44e618085a6cc"
+    },
+    {
+      "path": "backend.entrypoint.sh",
+      "git_blob_sha1": "ba939b95b0e39449d49d5033b3aa9301ea2c5c65",
+      "size": 1395,
+      "sha256": "2f884f81c6e501067e3cb37ad570bf52ba49a24a721504be099638576535fc91"
+    },
+    {
+      "path": "docker-compose.yml",
+      "git_blob_sha1": "819f852aadb2ca8f7f5a23b711bb35e5d35fee98",
+      "size": 840,
+      "sha256": "0a233518ab5467e3b2abc6e5222aaa1d4f225847d950b6333f9f9d4dcb2c35b7"
+    }
+  ]
+}

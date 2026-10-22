@@ -1,4 +1,4 @@
-# Separate project configuration; no Academy Docker files were supplied.
+# Independent local profile; Academy originals and adapter live in docker/academy.
 services:
   db:
     image: postgres:16-alpine

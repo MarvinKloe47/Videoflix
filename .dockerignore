@@ -10,3 +10,10 @@ videos
 thumbnails
 hls
 staticfiles
+# Own generated Academy build context and local credentials must never enter this image.
+docker/academy/.runtime
+
+# Backend images exclude the separately maintained frontend and editor/cache files.
+Videoflix_frontend
+.ruff_cache
+.vscode
