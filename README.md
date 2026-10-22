@@ -1,256 +1,233 @@
 # Videoflix Backend
 
-Django-/DRF-Backend fuer das Videoflix-Projekt der Developer Akademie.
-Es bietet E-Mail-Registrierung, Aktivierung, JWT-Cookies, Passwort-Reset,
-eine geschuetzte Videobibliothek und HLS-Streaming. Das Frontend ist separat.
-Verbindliche Referenzen liegen in `docs/`: PDF-Checkliste und
-`APIDoku_Videoflix (1).txt`. Der Abnahmestand steht in [docs/ABGABE_CHECK.md](docs/ABGABE_CHECK.md).
+Django-/DRF-Backend fuer das Videoflix-Kursprojekt der Developer Akademie.
+Registrierung, Aktivierung, JWT-Cookies, Passwort-Reset, geschuetzte Videobibliothek
+und HLS-Konvertierung sind implementiert. Das bereitgestellte Vanilla-JavaScript-
+Frontend wird separat verwaltet und ist nicht Bestandteil des Backend-Repositories.
 
-## Stack und Struktur
+Entwickelt im Rahmen des Weiterbildungsprogramms der Developer Akademie GmbH.
+Die verwendeten Maildesigns und das Logo stammen aus dem Kurs-Frontend;
+[Referenzen und Lizenz](docs/email_reference/README.md) sind dokumentiert.
 
-Python 3.12 (Docker), Django 5.2, DRF, SimpleJWT, PostgreSQL 16, Redis 7,
-Django RQ/RQ, FFmpeg/FFprobe und Gunicorn. Die exakten Python-Versionen
-stehen in `requirements.txt` (UTF-8).
+## Abnahmestand und Quellen
+
+Aktueller Nachweis: [docs/ABGABE_CHECK.md](docs/ABGABE_CHECK.md).
+Verbindlich sind `docs/Videoflix Checkliste.pdf` und
+`docs/APIDoku_Videoflix (1).txt`. [requirements.md](docs/requirements.md) ist eine
+Ableitung, keine zusaetzliche Akademie-Vorgabe. Architektur:
+[docs/architecture.md](docs/architecture.md).
+
+Backend-Kernfunktionen sind getestet. Eine vollstaendige PDF-Abnahme wird wegen
+fehlender fertiger Rechtstexte im separaten Demo-Frontend nicht behauptet.
+SMTP-Postfachzustellung und reale Mailclients sind ohne freigegebene Testdaten
+nicht geprueft; die Mail-Erzeugung und Links werden lokal getestet.
+
+## Projektstruktur
 
 ```text
-auth_app/   Benutzer, Serializer, Authentifizierung, E-Mails, Tests
-video_app/  Videos, geschuetzte Dateien, Signals, HLS, RQ-Tasks, Tests
-core/       Settings, Routing, CORS und isolierte Testkonfiguration
-docs/       Verbindliche Quellen, Architektur, Abnahme
-manage.py   Django-Kommandozeile
-compose.yaml / Dockerfile   Eigenstaendige lokale Docker-Konfiguration
+auth_app/       E-Mail-User, Auth-API, Mailtemplates/-Logo, Tests und Migrationen
+video_app/      Video-API, Cache, HLS, Signals/RQ, Tests und Migrationen
+core/           Settings, CORS, Routing und isolierter Akademie-Adapter
+docker/academy/ Unveraenderte Originale, eigene Erweiterung und Herkunftsnachweis
+scripts/        Vorbereitung, Compose-Wrapper und Abgabepruefung
+docs/           Verbindliche Quellen, Referenzen und aktuelle Abnahme
+Dockerfile / compose.yaml   Bisheriges eigenes lokales Docker-Profil
 ```
 
-## Docker-Start (empfohlen)
+Python 3.12 im Container, Django 5.2, DRF, SimpleJWT, PostgreSQL, Redis, Django RQ,
+FFmpeg/FFprobe und Gunicorn. Python-Abhaengigkeiten: `requirements.txt`.
 
-Voraussetzungen: Docker Desktop mit laufender Linux-Engine und Compose v2.
-Die Dateien sind eine eigene Konfiguration; Akademie-Docker-Dateien lagen
-weder im aktuellen Repository noch in der untersuchten Git-Historie vor.
+## Akademie-Abgabe: offizielles Docker-Profil mit eigener Erweiterung
+
+Voraussetzungen: Python 3, Docker Desktop mit Linux-Engine und
+Docker Compose >= 2.24.4 fuer `!override` und `!reset`.
+
+Im Projekt-Root unter PowerShell:
+
+```powershell
+python scripts/prepare_academy.py
+.\scripts\academy.ps1 config --quiet
+.\scripts\academy.ps1 up --build -d --wait --wait-timeout 120
+.\scripts\academy.ps1 ps --all
+```
+
+Backend: http://127.0.0.1:8001/api/csrf/; Admin: http://127.0.0.1:8001/admin/.
+Die automatisch erzeugten lokalen Admin-Zugangsdaten stehen ausschliesslich in
+`docker/academy/.runtime/.env`. Diese Datei ist ignoriert; vorhandene Werte werden
+beim erneuten Vorbereiten erhalten. Auch die Root-`.env` bleibt unveraendert.
+
+Fuer die Abgabe wird **original/docker-compose.yml + compose.compat.yaml** verwendet.
+Die sechs offiziellen Dateien sind byte-identisch auf Commit
+`4796b17de2b7656d62b6904d4d04e5b74cbc41c6` festgehalten. Der offizielle Entrypoint
+setzt ein username-Feld voraus; der getrennte eigene Adapter verwendet unser
+E-Mail-Usermodell, einen Migrationsdienst und einen eigenen RQ-Worker. Originale
+werden nicht editiert. Details: [Docker-Integration](docker/academy/README.md).
+
+Der Projektname `videoflix-academy` isoliert Netzwerk und Volumes vom bisherigen
+Stack. Nach Quellcodeaenderungen vor dem Build erneut prepare ausfuehren: Das
+Image verwendet einen vorbereiteten Snapshot, keinen Live-Bind-Mount.
+
+```powershell
+.\scripts\academy.ps1 logs --tail 100 web worker migrate
+.\scripts\academy.ps1 stop
+.\scripts\academy.ps1 up -d --wait --wait-timeout 120
+```
+
+Diese Befehle erhalten die Volumes. PostgreSQL-16-Volumes des bisherigen Profils
+werden nicht mit PostgreSQL 18 geoeffnet; ein Datentransfer erfordert Dump/Restore.
+
+## Bisheriges eigenes lokales Docker-Profil
+
+Dieses Profil bleibt erhalten und nutzt Port 8000, PostgreSQL 16 und Redis 7.
+Nur bei Erstinstallation `.env.example` nach `.env` kopieren; eine bestehende Datei
+nicht ueberschreiben. Eigene zufaellige Werte fuer SECRET_KEY und DB_PASSWORD setzen.
 
 ```powershell
 Copy-Item .env.example .env
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-# .env bearbeiten: SECRET_KEY und DB_PASSWORD durch eigene Werte ersetzen.
-# Vorhandene .env NICHT ueberschreiben; stattdessen fehlende Variablen ergaenzen.
+# Nur wenn noch keine .env existiert; Platzhalter durch eigene Werte ersetzen.
 docker compose config --quiet
-docker compose up --build -d
-docker compose ps
+docker compose up --build -d --wait --wait-timeout 120
 docker compose exec backend python manage.py createsuperuser
 ```
 
-Backend: http://localhost:8000, Administration: http://localhost:8000/admin/,
-RQ-Uebersicht (nur Staff): http://localhost:8000/django-rq/.
-PostgreSQL und Redis haben keine veroeffentlichten Host-Ports.
-Migrationen und `collectstatic` laufen im einmaligen `migrate`-Service vor
-Backend und Worker. DB, Redis, Media und Static verwenden persistente Volumes.
-DB, Redis und Backend haben Healthchecks; Worker-Status und Jobs sind ueber RQ pruefbar.
+Backend/Admin: http://127.0.0.1:8000/admin/. Migrationen und collectstatic laufen
+vor Webserver und Worker. DB/Redis werden nicht auf Host-Ports veroeffentlicht.
+Medien werden ausschliesslich ueber geschuetzte API-Routen ausgeliefert.
 
-```powershell
-docker compose logs --tail 100 backend worker migrate
-docker compose stop
-# Wieder starten, ohne Daten zu loeschen:
-docker compose up -d
-```
+## Lokale Python-Entwicklung
 
-`DEBUG=true` ist fuer lokale HTTP-Entwicklung vorgesehen. Bei HTTPS-Deployment:
-`DEBUG=false`, echte Hosts/Frontend-Origins, SMTP und TLS-Reverse-Proxy konfigurieren.
-Die beiliegende statische Django-Auslieferung fuer die Admin-Oberflaeche dient
-lokaler Abgabe/Entwicklung. Fuer oeffentlichen Betrieb Static ueber den Proxy
-bedienen. Niemals `MEDIA_ROOT` pauschal oeffentlich freigeben.
-
-## Lokale Einrichtung unter Windows
-
-Voraussetzungen: Python (mit 3.14 lokal getestet), PostgreSQL, Redis (z.B. in
-WSL oder einem eigenen Docker-Container), FFmpeg und FFprobe im PATH.
+Voraussetzungen: PostgreSQL, Redis und FFmpeg/FFprobe im PATH. Lokale .env gemaess
+.env.example einrichten; der DB-Benutzer benoetigt CREATEDB fuer die Testsuite.
 
 ```powershell
 python -m venv env
 .\env\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-# .env bearbeiten; existierende Datei erhalten.
-```
-
-PostgreSQL in `psql` mit Administratorrechten einrichten (eigenes Passwort einsetzen):
-
-```sql
-CREATE USER videoflix WITH PASSWORD 'replace-with-your-local-database-password';
-CREATE DATABASE videoflix OWNER videoflix;
--- Fuer den Testlauf muss der Benutzer Testdatenbanken anlegen duerfen:
-ALTER USER videoflix CREATEDB;
-```
-
-`DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_NAME`, `DB_USER` und `DB_PASSWORD`
-muessen zu dieser Datenbank passen. Docker setzt den Host intern auf `db`.
-
-```powershell
-# Separater lokaler Redis fuer Windows-Entwicklung (nicht fuer Compose erforderlich):
-docker run -d --name videoflix-local-redis -p 127.0.0.1:6379:6379 redis:7-alpine
-ffmpeg -version
-ffprobe -version
 python manage.py migrate
-python manage.py createsuperuser
 python manage.py runserver
-# Separates Terminal, gleiche virtuelle Umgebung:
+# Zweites Terminal mit derselben Umgebung:
 python manage.py rqworker default --worker-class rq.worker.SimpleWorker
 ```
 
-Der SimpleWorker vermeidet `fork()` unter Windows. Linux/Docker verwendet den
-normalen RQ-Worker mit Prozessisolation. Unter Windows gelten fuer produktive
-lange Jobs die Einschraenkungen des SimpleWorker; Docker ist der Abgabeweg.
+Der SimpleWorker vermeidet fork() unter Windows; das Docker-Profil nutzt den
+normalen Linux-RQ-Worker. Root-.env braucht lokale DB-/Redis-Hosts; das Akademie-Profil
+setzt dagegen interne Dienstnamen db/redis.
 
-## Umgebung und Sicherheit
+## Authentifizierung und API
 
-`.env.example` enthaelt nur Platzhalter. `.env`, Medien, virtuelle Umgebungen
-und generierte Dateien sind ignoriert und werden nicht ins Image kopiert.
-Ohne `SECRET_KEY` startet Django bewusst nicht. Historische hart codierte
-Entwicklungsschluessel sind im Abnahmebericht dokumentiert; deployed verwendete
-Schluessel muessen rotiert werden. Die Git-Historie wurde nicht veraendert.
+| Methode | URL | Zweck |
+|---|---|---|
+| POST | /api/register/ | email, password, confirmed_password; Account initial inaktiv |
+| GET | /api/activate/uid/token/ | Konto aktivieren |
+| GET | /api/csrf/ | Bestehende CSRF-Erweiterung |
+| POST | /api/login/ | email/password; HttpOnly-Cookies |
+| POST | /api/token/refresh/ | Leerer Body; Refresh-Cookie |
+| POST | /api/logout/ | Cookies loeschen und Refresh-Session sperren |
+| POST | /api/password_reset/ | Reset-Link anfordern, allgemeine Rueckmeldung |
+| POST | /api/password_confirm/uid/token/ | new_password, confirm_password |
+| GET | /api/user/ | Bestehende Benutzer-Erweiterung |
+| GET | /api/video/ | PUBLIC-Videos, created_at DESC |
+| GET | /api/video/id/ | Bestehende Detail-Erweiterung |
+| GET | /api/video/id/thumbnail/ | Geschuetztes Thumbnail |
+| GET | /api/video/id/480p/index.m3u8 | Playlist; ebenso 720p/1080p |
+| GET | /api/video/id/480p/segment_000.ts/ | Geschuetztes TS-Segment |
 
-Queue: Redis DB 0 (`REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`).
-Cache: separate DB 1 (`CACHE_URL`). Gecacht werden ausschliesslich Video-Metadaten
-fuer 60 Sekunden, keine Benutzer, JWTs oder HTTP-Responses. Authentifizierung und
-PUBLIC-Sichtbarkeit werden vor jedem Zugriff frisch geprueft. Aenderungen und
-Loeschungen invalidieren nach dem Commit. Bei Cache-Ausfall erfolgt ein
-protokollierter Datenbank-Fallback; Queue-Ausfaelle setzen den Verarbeitungsstatus
-auf FAILED. `QuerySet.update()` umgeht Signale und kann Metadaten bis zu 60 Sekunden
-veraltet lassen; die Sichtbarkeit wird weiterhin frisch geprueft.
+Videoantworten enthalten exakt id, created_at, title, description, thumbnail_url
+und category. Das Frontend gruppiert die flache Liste nach category. Anonyme
+Videozugriffe liefern 401, private/fehlende Ressourcen 404. Kein oeffentlicher Upload.
 
-CORS erlaubt nur `FRONTEND_ORIGINS` mit Credentials. JWT-Cookies sind HttpOnly,
-SameSite=Lax und bei `DEBUG=false` Secure. Fuer das uebliche lokale Frontend auf
-einem anderen Port zuerst CSRF abrufen und Cookies mitsenden:
+Login, Refresh und Logout erfordern CSRF. Zuerst GET /api/csrf/ mit
+`credentials: 'include'`, dann den csrfToken als X-CSRFToken im POST-Header senden.
+Auch weitere API-/HLS-Anfragen muessen Cookies mitsenden. JWTs bleiben HttpOnly;
+keine zusaetzliche Speicherung im Local Storage. localhost und 127.0.0.1 nicht
+mischen: SameSite=Lax erfordert dieselbe Site. CORS/CSRF erlaubt nur konfigurierte
+Origins mit Credentials. DEBUG=false aktiviert Secure-Cookies fuer HTTPS.
 
-```javascript
-const api = 'http://127.0.0.1:8000/api';
-const {csrfToken} = await fetch(`${api}/csrf/`, {credentials: 'include'}).then(r => r.json());
-await fetch(`${api}/login/`, {
-  method: 'POST', credentials: 'include',
-  headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-  body: JSON.stringify({email: 'user@example.com', password: 'your-password'})
-});
-```
+Root-Settings verwenden FRONTEND_ORIGINS/CACHE_URL, der eigene Akademie-Adapter
+unterstuetzt CSRF_TRUSTED_ORIGINS/REDIS_LOCATION aus der offiziellen Vorlage.
 
-Login, Refresh und Logout brauchen CSRF. Cookie-authentifizierte Schreibzugriffe
-werden ebenfalls geprueft. Frontend und API muessen bei SameSite=Lax dieselbe
-Site nutzen; `localhost` und `127.0.0.1` nicht mischen. Ein Betrieb auf verschiedenen
-Sites benoetigt eine eigene Cookie-/CSRF-Konfiguration und ist nicht voreingestellt.
+## E-Mails und Videoverarbeitung
 
-## API
+Aktivierungs-/Reset-Links zeigen auf FRONTEND_ACTIVATION_URL bzw.
+FRONTEND_PASSWORD_RESET_URL mit uid/token. Mails enthalten Plaintext, HTML und ein
+inline eingebettetes Logo. Autoescaping schuetzt personalisierte HTML-Inhalte;
+Plaintext behaelt die unveraenderten Links. Der Ablauftext verwendet den tatsaechlichen
+Django-PASSWORD_RESET_TIMEOUT (standardmaessig 72 Stunden), statt die 24 Stunden
+aus der Designabbildung falsch zu versprechen. Der Tokenvertrag bleibt unveraendert.
 
-| Methode | URL | Erfolg | Zweck |
-|---|---|---|---|
-| POST | `/api/register/` | 201 | email, password, confirmed_password |
-| GET | `/api/activate/<uidb64>/<token>/` | 200 | Account aktivieren |
-| GET | `/api/csrf/` | 200 | CSRF-Cookie und Token (Erweiterung) |
-| POST | `/api/login/` | 200 | email/password, Access-/Refresh-Cookies |
-| POST | `/api/logout/` | 200 | Cookies loeschen, Refresh sperren |
-| POST | `/api/token/refresh/` | 200 | Access-Cookie erneuern |
-| POST | `/api/password_reset/` | 200 | Reset-Link anfordern |
-| POST | `/api/password_confirm/<uidb64>/<token>/` | 200 | new_password, confirm_password |
-| GET | `/api/user/` | 200 | Angemeldeten Benutzer lesen (Erweiterung) |
-| GET | `/api/video/` | 200 | PUBLIC-Videos nach created_at DESC |
-| GET | `/api/video/<id>/` | 200 | Videodetail (Erweiterung) |
-| GET | `/api/video/<id>/thumbnail/` | 200 | Geschuetztes Thumbnail (Erweiterung) |
-| GET | `/api/video/<id>/<resolution>/index.m3u8` | 200 | HLS-Playlist |
-| GET | `/api/video/<id>/<resolution>/<segment>/` | 200 | TS-Segment |
+Lokal schreibt das Console-Mailbackend in die Logs. SMTP nur mit freigegebenen
+Testzugangsdaten und Empfaenger pruefen. Fuer Deployment EMAIL_BACKEND und EMAIL_*
+konfigurieren; keine Zugangsdaten versionieren. Passwortwechsel invalidiert alte
+JWTs; Logout sperrt auch vorher ausgestellte Access-Tokens derselben Sitzung.
 
-Video-Endpunkte benoetigen ein gueltiges Access-Cookie (sonst 401), private und
-fehlende Ressourcen liefern 404. Refresh/Logout: fehlendes Refresh-Cookie 400,
-ungueltiges/gesperrtes Token 401; fehlendes CSRF bei Schreibzugriffen 403.
-Die Videoantwort enthaelt exakt `id`, `created_at`, `title`, `description`,
-`thumbnail_url`, `category`; Kategorien werden als z.B. `Drama` ausgegeben.
-Die flache Liste bleibt API-vertragskonform; das Frontend gruppiert nach category.
+Staff-Upload: /admin/video_app/video/add/ mit MP4 und JPG/PNG/WebP-Thumbnail.
+Eine neue/ersetzte Quelldatei plant erst nach DB-Commit einen eindeutigen RQ-Job.
+Metadaten-Speicherungen starten keine neue Konvertierung. Zeilensperre und Job-UUID
+verhindern doppelte/veraltete Konvertierungen; READY/FAILED stehen im Admin.
+FFmpeg erzeugt 480p/720p/1080p bis zur Quellhoehe, ohne Upscaling. Unter 480p wird
+die Quelle FAILED. Nicht fertige/fehlende Qualitaeten liefern 404. Roh-MP4s bleiben
+privat; Playlists referenzieren die geschuetzten Segmentrouten.
 
-## E-Mail-Aktivierung und Passwort-Reset
+Queue: Redis DB 0; Metadaten-Cache: DB 1, 60 Sekunden. Sichtbarkeit und Authentifizierung
+werden vor jedem Zugriff frisch geprueft. Commit-Hooks invalidieren den Cache;
+Redis-Cache-Ausfall faellt auf die DB zurueck. Queue-Ausfaelle werden als FAILED erfasst.
 
-Neue Benutzer bleiben inaktiv. Aktivierungs- und Reset-Links zeigen auf die
-konfigurierten Frontend-Seiten mit `uid` und `token`. Das Frontend ruft danach den
-jeweiligen API-Endpunkt auf. E-Mails enthalten Plaintext und responsives HTML.
-Die eigene HTML-Vorlage wurde nicht mit der nicht vorliegenden Akademie-Frontend-
-Vorlage abgeglichen. Reset-Antworten sind fuer bekannte und unbekannte E-Mails
-gleich. Doppelte Registrierung liefert eine allgemeine Fehlermeldung; wegen
-unterschiedlicher HTTP-Ergebnisse ist Registrierung nicht vollstaendig gegen
-Enumeration verborgen (der Vertrag verlangt Ablehnung doppelter Adressen).
-
-Standardmaessig schreibt das Console-Backend E-Mails in die Serverlogs. Fuer echten
-Versand `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` und die
-`EMAIL_*`-Variablen konfigurieren. Externe SMTP-Zustellung wurde nicht getestet.
-Logout sperrt auch gespeicherte Access-Tokens derselben Sitzung; Passwortwechsel
-invalidiert vorher ausgestellte Access- und Refresh-Tokens.
-
-## Videoupload und HLS
-
-Uploads erfolgen als Staff/Superuser ueber `/admin/video_app/video/add/`.
-Es gibt gemaess API-Vertrag keinen oeffentlichen Upload-Endpunkt.
-MP4 und ein Thumbnail (JPG/PNG/WebP) angeben. Die Admin-Validierung prueft
-Dateiendungen; FFprobe prueft den Videostream im Hintergrund. Beschaedigte Dateien
-werden FAILED. Ein Bild wird bereitgestellt, nicht automatisch extrahiert.
-
-Nur neue/ersetzte Quelldateien planen nach dem DB-Commit einen RQ-Job ein.
-Metadaten- und Statusspeicherungen starten keine neue Konvertierung. Jobs besitzen
-UUIDs je Quellversion; Redis erzwingt eindeutige Jobs. PostgreSQL-Zeilensperren
-serialisieren Konvertierungen; veraltete und bereits abgeschlossene Jobs werden
-uebersprungen. Status: PENDING, PROCESSING, READY oder FAILED. Die Verarbeitung
-haelt eine Transaktion: PROCESSING ist fuer andere DB-Verbindungen waehrenddessen
-noch nicht sichtbar; READY/FAILED werden beim Abschluss sichtbar.
-
-FFmpeg erzeugt 480p/720p/1080p nur bis zur Quellhoehe (kein Upscaling).
-Quellen unter 480 Pixeln Hoehe scheitern mit einer erklaerenden Statusmeldung.
-Timeout: 30 Sekunden fuer FFprobe, 900 Sekunden je Qualitaet, RQ 3600 Sekunden.
-Eingabeprotokolle sind auf file/pipe begrenzt. HLS-Struktur:
-
-```text
-media/videos/<quelle>.mp4
-media/thumbnails/<bild>
-media/hls/<video-id>/480p/index.m3u8
-media/hls/<video-id>/480p/segment_000.ts
-# ebenso 720p und 1080p, falls die Quelle sie unterstuetzt
-```
-
-Playlists verweisen ausschliesslich auf geschuetzte Segment-URLs.
-Nicht fertige Videos, ungueltige Aufloesungen und Pfad-Traversal liefern 404.
-Original-MP4s und das Medienverzeichnis werden nicht oeffentlich ausgeliefert.
-Der Frontend-Player muss Cookies auch bei HLS-Anfragen mitsenden.
-
-## Tests und Abnahme
+## Qualitaetspruefung
 
 ```powershell
 python manage.py check
 python manage.py makemigrations --check --dry-run
-# PostgreSQL bleibt die Testdatenbank; Cache/Mail werden lokal isoliert:
+python manage.py test --noinput
+# Schnellere, isolierte Tests mit PostgreSQL, In-Memory-Mail/Cache und MD5-Testhasher:
 python manage.py test --settings=core.test_settings --noinput
-# Im laufenden Docker-Stack:
-docker compose exec backend python manage.py check
-docker compose exec backend python manage.py makemigrations --check --dry-run
-docker compose exec backend python manage.py test --settings=core.test_settings --noinput
-docker compose exec backend python manage.py smoke_hls
+# Ruff ist ein separates Entwicklungswerkzeug, keine Runtime-Abhaengigkeit:
+ruff check .
+python scripts/check_submission.py
+# Im Akademie-Container:
+.\scripts\academy.ps1 exec -T web python manage.py check
+.\scripts\academy.ps1 exec -T web python manage.py makemigrations --check --dry-run
+.\scripts\academy.ps1 exec -T web python manage.py test --settings=core.academy_test_settings --noinput
+.\scripts\academy.ps1 exec -T web python manage.py smoke_hls
 ```
 
-Der Smoke-Test laedt ein echtes generiertes 1080p-MP4 ueber den Admin hoch,
-prueft Redis-Cache und Queue, wartet auf den laufenden Worker und liest alle drei
-HLS-Qualitaeten authentifiziert. Seine temporaeren Benutzer, Videos und Medien
-werden entfernt. Nur in einer Entwicklungs-/Abnahmeumgebung ausfuehren.
-Die Tests enthalten ausserdem einen echten lokalen FFmpeg-Lauf; fehlt FFmpeg,
-wird ausschliesslich dieser Test explizit uebersprungen.
+Der Smoke-Test erzeugt ein echtes temporaeres 1080p-Video, prueft Redis/RQ/FFmpeg
+und alle geschuetzten Qualitaeten. Nur in einer lokalen Entwicklungs-/Abnahmeumgebung
+nutzen. Testbenutzer und Medien werden anschliessend entfernt. Kein vorhandener
+Datenbestand wird zum Aufraeumen geloescht. Fehlt FFmpeg lokal, kennzeichnet der
+echte FFmpeg-Test den Skip; die Docker-Images enthalten FFmpeg.
 
-## Fehlerbehebung
+Ruff E/F/I gilt fuer den eigenen Code. Nur die 13 bestehenden E501-Faelle der beiden
+Initialmigrationen und die Imports einer generierten Migration sind gezielt ausgenommen.
+Die 14-Zeilen-Pruefung zaehlt physische Zeilen von def bis zum letzten Statement,
+einschliesslich Signatur, Leerzeilen und Docstrings; Decorators liegen ausserhalb.
+Die PDF nennt keine Zaehldefinition. Generierte Migrationen und unveraenderte
+Akademie-Originale sind ausgenommen; setUp/tearDown behalten ihre Django-Hooknamen.
 
-- Docker-Engine fehlt: Docker Desktop starten, Linux-Container aktivieren.
-- DB-Verbindung: lokale `.env` pruefen; in Docker ist der Host `db`.
-- `SECRET_KEY` fehlt: eigenen zufaelligen Wert in `.env` setzen.
-- Keine E-Mail im Postfach: Console-Backend schreibt in Logs; SMTP konfigurieren.
-- 403 bei Login/Refresh/Logout: CSRF-Cookie holen, Header und Credentials mitsenden.
-- 401 bei HLS: Access-Cookie fehlt/abgelaufen oder Sitzung wurde beendet.
-- FAILED: `processing_error` im Admin und Worker-Logs lesen; FFmpeg/Quelle pruefen.
-- Queue-Ausfall: Redis wieder starten, Quelldatei erneut hochladen.
-- Fehlgeschlagener RQ-Job: nach Fehlerbehebung ueber die Staff-RQ-Uebersicht erneut
-  einreihen; neues Hochladen erzeugt ebenfalls eine neue Quellversion.
-- Fehlendes Thumbnail: Bild tatsaechlich hochladen; DB-Dateiname allein erzeugt keine Datei.
-- Bestehende lokale Medien: nach Umstellung auf `media/` eigene vorhandene Dateien
-  aus den alten Ordnern `videos/`, `thumbnails/`, `hls/` dorthin kopieren.
-  Dieser Sprint hat vorhandene Medien nicht verschoben oder geloescht.
+## Separates Frontend und Deploymentgrenzen
 
-Technische Referenzen: [Django-Transaktionen](https://docs.djangoproject.com/en/5.2/topics/db/transactions/),
-[Django-Cache](https://docs.djangoproject.com/en/5.2/topics/cache/),
-[RQ-Jobeindeutigkeit](https://python-rq.org/docs/),
-[FFmpeg HLS](https://ffmpeg.org/ffmpeg-formats.html).
+Der lokale Ordner Videoflix_frontend/ ist gesichert und wird von Git und Docker
+ignoriert. Es gibt keinen Angular-/Bundler-Build; hls.js 1.6.7 kommt vom CDN.
+
+```powershell
+python -m http.server 5500 --bind 127.0.0.1 --directory Videoflix_frontend
+npm --prefix Videoflix_frontend test
+npm --prefix Videoflix_frontend run check
+# Playwright nur als Testwerkzeug installieren:
+npm --prefix Videoflix_frontend ci
+Push-Location Videoflix_frontend
+npx playwright install chromium
+Pop-Location
+npm --prefix Videoflix_frontend run test:browser
+```
+
+Der vorhandene Browser-Test erwartet das bisherige Backend auf Port 8000. Fuer
+Frontendtests gegen das Akademie-Profil den Port separat konfigurieren oder erst
+den bisherigen Port freigeben und ACADEMY_HTTP_PORT=8000 setzen. Kein Stack wird
+hierfuer automatisch beendet. Das statische Webroot muss der Frontend-Ordner sein.
+
+Datenschutz/Impressum sind gekennzeichnete Kurs-Demoinhalte, keine verifizierten
+Betreiberangaben. Vor oeffentlichem Deployment muessen korrekte Daten/Rechtstexte,
+HTTPS, reale Hosts/Origins, SMTP und ein Static-Proxy eingerichtet werden. Die lokale
+Django-Static-Auslieferung ist fuer die Abnahme vorgesehen; MEDIA_ROOT nie pauschal
+veroeffentlichen. Historische Entwicklungsschluessel sind als kompromittiert zu
+behandeln; bei frueherer Deployment-Nutzung dort rotieren und alte Sessions verwerfen.

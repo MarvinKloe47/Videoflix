@@ -1,282 +1,216 @@
-# Videoflix - Abgabecheck
+# Videoflix - finaler Abgabecheck
 
-Stand: 21.10.2026. Backend technisch getestet; Gesamtabgabe unter Vorbehalt der
-externen Frontend- und Vorlagenpruefung. Kein Commit, Push oder History-Rewrite.
+Stand: 22.10.2026. Dieser Bericht ersetzt die vorherigen Zwischenstaende.
+Die unveraenderte historische Evidenz liegt in
+[history/ABGABE_CHECK_before_final_cleanup.md](history/ABGABE_CHECK_before_final_cleanup.md).
 
-## Verbindliche Quellen
+**Backend technisch abgabebereit; vollstaendige PDF-Abnahme: NICHT ABGABEBEREIT.**
+Offen sind fertige rechtliche Inhalte des separaten Demo-Frontends. Externe
+SMTP-Zustellung und reale Mailclients sind ohne freigegebene Testdaten nicht
+nachgewiesen. Das sind ausdrueckliche Grenzen des Nachweises, keine erfundenen
+Anforderungen an einen bestimmten SMTP-Anbieter oder oeffentliches Deployment.
 
-1. `Videoflix Checkliste.pdf`: vollstaendig per pypdf ausgelesen, primaere DoD.
-2. `APIDoku_Videoflix (1).txt`: die angeforderte API-Dokumentation liegt unter
-   diesem Dateinamen in docs vor.
-3. Quellcode, Migrationen und Tests in auth_app, video_app und core.
-4. `requiremnts.md`: vorhandene Ableitung REQ-001 bis REQ-044. Da diese nicht
-   alle Frontend-Punkte der PDF enthaelt, folgen zusaetzliche Einzelpunkte unten.
+## Verbindliche Quellen und Umfang
 
-Nicht vorhanden: separates Akademie-Frontend, dessen E-Mail-Designvorlagen und
-vorgegebene Akademie-Docker-Dateien. Auch die erreichbare Git-Historie enthaelt
-keine Docker-/Compose-Pfade. Die neue Docker-Konfiguration ist deshalb als eigene
-Konfiguration gekennzeichnet. Keine Akademie-Datei wurde ersetzt oder veraendert.
-Der unversionierte Ordner videoflix_backend ist nicht der verwendete Projekt-Root.
+- `Videoflix Checkliste.pdf`: alle Seiten erneut ausgelesen; Definition of Done.
+- `APIDoku_Videoflix (1).txt`: tatsaechlicher Dateiname, alle API-Methoden/Pfade verglichen.
+- Offizielle Docker-Dateien unter `docker/academy/original/`, Upstream-Commit
+  `4796b17de2b7656d62b6904d4d04e5b74cbc41c6`; am 22.10.2026 erneut gegen main geprueft.
+- Maildesigns/Logo aus dem bereitgestellten Kursfrontend; Referenzen und Lizenz
+  unter `docs/email_reference/`. Kein Design wurde als fehlend angenommen.
+- `requirements.md` ist eine Ableitung der PDF, keine eigene zusaetzliche Vorgabe.
 
-## Phase A: Bestandsaufnahme
+## Vollstaendiges Audit und Struktur
 
-| Anfangsstatus | Befund | Ergebnis |
-|---|---|---|
-| Vollstaendig implementiert | Registrierung, inaktive Accounts, Aktivierung, Login, CSRF, Reset, PUBLIC-Liste, DESC-Sortierung und geschuetzte HLS-Routen | Beibehalten und weiter getestet |
-| Teilweise implementiert | RQ-Trigger ohne Aenderungserkennung/Deduplizierung; Queue-Ausfall nur geloggt | Quellversion, eindeutiger Job, Commit-Hooks und Fehlerstatus implementiert |
-| Fehlerhaft | Normales save() startet Konvertierung; ungueltiger Logout kann 500 liefern; alte JWTs nach Passwortwechsel/Logout nutzbar | Behoben und Regressionstests ergaenzt |
-| Fehlerhaft | DEBUG fest true, Dev-Schluessel im Code, MEDIA_ROOT Projekt-Root, automatischer Unique-Fehler verraet Kontoexistenz | Umgebungskonfiguration, eigener Media-Root und allgemeiner Fehler |
-| Fehlerhaft | requirements UTF-16, fehlende Manager-Migration | UTF-8 und neue Migration |
-| Fehlend | Echter Redis-Cache, Thumbnail-Auslieferung, README, Docker und HTML-Mail | Implementiert |
-| Noch nicht getestet | Docker und realer Upload durch Queue/Worker in drei Qualitaeten | Jetzt erfolgreich geprueft |
-| Weiterhin ungeprueft | SMTP-Zustellung, Akademie-Frontend, Browser-Player und Original-Maildesign | Externe Voraussetzungen fehlen |
+Vorher:
 
-## REQ-Nachweis
-
-ERFUELLT bezieht sich auf den angegebenen Backend-Umfang. Frontend-Verhalten wird
-nicht aufgrund eines API-Tests als bestanden ausgegeben.
-
-| ID | Anforderung | Status | Dateien / Testnachweis |
-|---|---|---|---|
-| 001 | Registrierung E-Mail/Passwort/Bestaetigung | ERFUELLT | auth_app/serializers.py, Registrierungstests |
-| 002 | Validierung und doppelte E-Mail ablehnen | ERFUELLT | RegistrationSerializer; Duplikat-/Mismatch-/Invalid-Tests |
-| 003 | Allgemeine Registrierungsfehler | ERFUELLT | Automatischen Unique-Validator ersetzt, Fehlermeldung getestet |
-| 004 | Account initial inaktiv | ERFUELLT | RegistrationSerializer.create und Test |
-| 005 | Aktivierungs-Mail | ERFUELLT | services.py und HTML-Template, Outbox-Test |
-| 006 | Aktivierung vor Login | ERFUELLT | ActivationView; gueltige/ungueltige/abgelaufene Tokens |
-| 007 | E-Mail-/Passwort-Login | ERFUELLT | LoginView, Login-/Cookie-Tests |
-| 008 | Generische Login-Fehler | ERFUELLT | Falschpasswort-/Inaktiv-Test |
-| 009 | Authentifizierter Zugriff | ERFUELLT | CookieJWTAuthentication, 401-/PRIVATE-Tests |
-| 010 | Sichere Abmeldung | ERFUELLT | Cookie-Loeschung, Refresh-Blacklist und gespeichertes Access-Token getestet |
-| 011 | Reset anfordern | ERFUELLT | PasswordResetRequestView, Tests |
-| 012 | Keine Kontoauskunft beim Reset | ERFUELLT | Gleicher Status/Body fuer bekannt/unbekannt |
-| 013 | Reset-Mail mit Link | ERFUELLT | services.py und Frontend-Link-Test; SMTP separat offen |
-| 014 | Neues Passwort setzen | ERFUELLT | Confirm-View/Serializer; neuer Login, Replay, alte JWTs getestet |
-| 015 | Video-Liste | ERFUELLT | VideoListView, API-Tests |
-| 016 | Titel/Beschreibung/Kategorie/Datum/Thumbnail | ERFUELLT | VideoSerializer, exakte Vertragsfelder getestet |
-| 017 | Datum DESC | ERFUELLT | List-Queryset und Sortierungstest |
-| 018 | Genre-Gruppierung ermoeglichen | ERFUELLT | category-Anzeigenamen; Gruppierung im Frontend |
-| 019 | Hero-Standbild ermoeglichen | ERFUELLT | Geschuetztes thumbnail_url; UI separat ungeprueft |
-| 020 | Thumbnail bereitstellen | ERFUELLT | Upload-Feld, ThumbnailView, Datei-Lesetest |
-| 021 | Authentifiziert streamen | ERFUELLT | HLS-Views und echter Smoke-Test |
-| 022 | HLS erzeugen | ERFUELLT | hls.py, echter FFmpeg-Test und Docker-Smoke |
-| 023 | 480p/720p/1080p | ERFUELLT | Echter 1080p-Upload mit allen drei Qualitaeten; kein Upscaling getestet |
-| 024 | Manuelle Qualitaetsauswahl ermoeglichen | ERFUELLT | Aufloesungsspezifische Routen; Player-UI separat offen |
-| 025 | M3U8 ausliefern | ERFUELLT | MIME application/vnd.apple.mpegurl, API-/Smoke-Test |
-| 026 | TS ausliefern | ERFUELLT | MIME video/MP2T, API-/Smoke-Test |
-| 027 | Frontend/Backend getrennt, REST | ERFUELLT | Backend-Repository und DRF-Routing |
-| 028 | DRF | ERFUELLT | requirements.txt, Views und Serializer |
-| 029 | PostgreSQL statt SQLite | ERFUELLT | settings.py und Compose; lokale/Docker-Tests auf PostgreSQL |
-| 030 | Redis als echter Cache | ERFUELLT | RedisCache DB 1, utils.py; echtes set/get/delete im Smoke |
-| 031 | Hintergrundtasks mit Django RQ | ERFUELLT | signals.py/tasks.py, laufender Worker, echter Upload-Smoke |
-| 032 | Videoverarbeitung | ERFUELLT | FFprobe/FFmpeg, Status/Fehler, sichere Pfade und Jobtests |
-| 033 | Vollstaendiger Docker-Start | ERFUELLT | Eigener Dockerfile/compose.yaml, erfolgreicher Build/Start/Migrationen |
-| 034 | Clean Code | ERFUELLT | Gezielte Refaktorierung, Ruff E/F und AST-Pruefung |
-| 035 | Funktionen maximal 14 Zeilen | ERFUELLT | AST: keine Ueberschreitungen in Apps/core inkl. Tests; generierte Migrationen ausgenommen |
-| 036 | Eine Aufgabe je Funktion | ERFUELLT | Getrennte Validierung, Responses und Fachhelfer |
-| 037 | snake_case, sprechende Namen | ERFUELLT | Fachfunktionen snake_case; setUp/tearDown sind Django-Test-Hooks |
-| 038 | Kein ungenutzter/auskommentierter Code | ERFUELLT | Ungenutzte Imports/Funktion entfernt, Ruff F erfolgreich |
-| 039 | Views und Hilfsfunktionen getrennt | ERFUELLT | Responses in views.py, Hilfslogik in utils.py bzw. bestehenden Fachmodulen |
-| 040 | PEP-8 soweit moeglich | ERFUELLT | Ruff E/F erfolgreich; historische generierte Migrationen unveraendert |
-| 041 | Aussagekraeftige README | ERFUELLT | README.md: Installation, Infrastruktur, API, Upload, Tests, Fehlerbehebung |
-| 042 | Projektdokumentation | ERFUELLT | README, aktualisierte architecture.md, dieser Bericht und Originalquellen |
-| 043 | Nur Backend im Repository | ERFUELLT | git ls-files: Backend, Dokumente und Infrastruktur; kein Frontend |
-| 044 | Akademie-Docker unveraendert | ERFUELLT | Keine solchen Dateien vorhanden, neue eigene Konfiguration gekennzeichnet |
-
-### Weitere einzelne PDF-Punkte
-
-| PDF-Punkt | Status | Nachweis / Grenze |
-|---|---|---|
-| Technisch: responsive Benutzeroberflaeche | OFFEN | Separates Frontend fehlt |
-| Story 1: Formular mit drei Pflichtfeldern | TEILWEISE | API vorhanden, UI ungeprueft |
-| Story 1: Registrieren-Button bei fehlenden Pflichtfeldern deaktiviert | OFFEN | Frontend-Verhalten |
-| Story 1: Wechsel zum Anmeldeformular | OFFEN | Frontend-Verhalten |
-| Story 1 Backend: User anlegen und Existenz pruefen | ERFUELLT | Registrierungs-/Duplikat-Tests |
-| Story 1 Backend: Initial inaktiv, Aktivierungslink zum Frontend | ERFUELLT | Mail-/Aktivierungs-/Login-Tests |
-| Story 1: Akademie-E-Mail-Designvorlage | TEILWEISE | Eigenes responsives HTML; Originalvorlage fehlt |
-| Story 2: Login-Formular | TEILWEISE | Backend getestet, Frontend ungeprueft |
-| Story 2: Allgemeiner Fehler bei falschen Daten | ERFUELLT | API-Fehler getestet; UI-Anzeige ungeprueft |
-| Story 2: Passwort-vergessen-Option | TEILWEISE | Reset-API vorhanden; UI ungeprueft |
-| Story 2: Weiterleitung zur Startseite | OFFEN | Frontend-Verhalten |
-| Story 2: Wechsel zum Registrierungsformular | OFFEN | Frontend-Verhalten |
-| Story 2 Backend: Falsche/inaktive Daten ablehnen | ERFUELLT | Inaktiv-/Passworttest |
-| Story 3: Logout-Option | TEILWEISE | Endpoint vorhanden; UI ungeprueft |
-| Story 3: Sicher ausloggen und zum Login weiterleiten | TEILWEISE | Backend getestet; Weiterleitung ist Frontend |
-| Story 3: Daten nach Logout nicht erreichbar | ERFUELLT | User-Endpoint und aufbewahrtes Access-Token liefern 401 |
-| Story 3 Backend: Cookies loeschen, Response senden | ERFUELLT | Cookie-Pfade/HttpOnly/Max-Age und Response getestet |
-| Story 4: Passwort-vergessen-Funktion im Login | TEILWEISE | Backend fertig; Frontend fehlt |
-| Story 4: Keine Kontoauskunft nach Reset-Anfrage | ERFUELLT | Identische Antwort getestet |
-| Story 4: Reset-Mail senden | ERFUELLT | Outbox/Link getestet; SMTP offen |
-| Story 4: Reset-Mail responsiv/richtig angezeigt | TEILWEISE | Fluides HTML mit viewport; reale Mailclients/Originaldesign ungeprueft |
-| Story 4: Neues Passwort ueber Link setzen | ERFUELLT | uid/token, Validierung/Replay/Expiry getestet |
-| Story 4: Login mit neuem Passwort | ERFUELLT | Regressionstest |
-| Story 4 Backend: Frontend-Link und Passwort ersetzen | ERFUELLT | Link und Django-Passworthash; alte JWTs invalidiert |
-| Story 5: Hero-Teaser oder Standbild | TEILWEISE | Thumbnail-API vorhanden, Darstellung ungeprueft |
-| Story 5: Gruppierung nach Genre anzeigen | TEILWEISE | category vorhanden, UI-Gruppierung ungeprueft |
-| Story 5: Reihenfolge Datum DESC | ERFUELLT | API-Sortierungstest |
-| Story 5: Thumbnail und Titel anzeigen | TEILWEISE | API/Bild vorhanden; UI ungeprueft |
-| Story 5 Backend: M3U8, TS und Thumbnail | ERFUELLT | Datei-Tests und Smoke |
-| Story 6: 480p/720p/1080p manuell waehlen | TEILWEISE | Alle Dateien/Routen real getestet; Player-Auswahl ungeprueft |
-| Story 6: Play/Pause/Vor-/Zurueckspulen | OFFEN | Separater Player |
-| Story 6: Vollbild | OFFEN | Separater Player |
-| Story 6 Backend: M3U8/TS fuer Qualitaeten | ERFUELLT | Smoke liest alle drei Qualitaeten |
-| Story 7: Footerlinks Datenschutz/Impressum | OFFEN | Frontend fehlt |
-| Story 7: Rechtstexte klar/verstaendlich | OFFEN | Inhalte fehlen; keine Texte erfunden |
-| Story 7: Rechtsseiten responsiv | OFFEN | Frontend-/Browserpruefung fehlt |
-| Deployment: echte Angaben und Akademie-Kennzeichnung | OFFEN | Nur bei eigenem oeffentlichem Deployment; nicht durchgefuehrt |
-| Abgabe als GitHub-Link | TEILWEISE | Git-Remote vorhanden; keine Einreichung/Push durchgefuehrt |
-| Abgabe nur Backend | ERFUELLT | Versionierte Struktur geprueft |
-| Akademie-Docker nicht veraendern | ERFUELLT | Keine vorhanden; eigene Dateien hinzugefuegt |
-| E-Mail/HLS erarbeiten und Dokumentationen verwenden | ERFUELLT | Code analysiert, offizielle Transaktions-/RQ-/FFmpeg-Dokumentation konsultiert |
-
-## API-Vertragsabgleich
-
-Alle dokumentierten URLs und Methoden existieren unveraendert. Registrierung:
-201 mit user/id/email und Aktivierungstoken. Aktivierung: 200/message bzw. 400.
-Login: 200/detail/user und HttpOnly-Cookies. Logout: 200/detail, Cookie-Loeschung
-und Refresh-Blacklist. Refresh: 200/detail/access und Access-Cookie; fehlendes
-Refresh-Cookie 400, ungueltiges 401. Reset und Confirm: 200/detail.
-Videos: 200 als flache Liste der sechs dokumentierten Felder; anonym 401.
-Fehlende/private/nicht fertige HLS-Ressourcen: 404. M3U8-/TS-MIME-Typen stimmen.
-
-Korrigiert: undokumentiertes video_url auf Original-MP4 entfernt, category liefert
-Anzeigenamen wie Drama statt DRAMA. thumbnail_url bleibt absolut und ist jetzt
-geschuetzt. Bestehende csrf/user/detail-Erweiterungen bleiben erhalten; Thumbnail
-und Staff-RQ-Uebersicht wurden ergaenzt. CSRF fuer Login/Refresh/Logout ist eine
-dokumentierte Sicherheitsergaenzung. Der Vertrag fordert keine Backend-
-Gruppenstruktur und keinen oeffentlichen Upload-Endpoint.
-
-## Tatsaechlich ausgefuehrte Abnahme
-
-| Pruefung | Ergebnis |
-|---|---|
-| Ausgangssuite manage.py test --noinput | 33 bestanden, PostgreSQL, echter FFmpeg-Test ohne Skip |
-| Final lokal manage.py check | Keine Probleme, env/Scripts/python.exe |
-| Final lokal makemigrations --check --dry-run | No changes detected |
-| Final lokal test --noinput mit DJANGO_SETTINGS_MODULE=core.test_settings | 57 bestanden, 0 Fehler, 0 Skips, PostgreSQL |
-| Docker Compose config --quiet | Erfolgreich |
-| Docker Compose up --build -d | Images, Migrationen und collectstatic erfolgreich; vier Laufzeitdienste gestartet |
-| Docker check | Keine Probleme |
-| Docker makemigrations --check --dry-run | No changes detected |
-| Docker test --settings=core.test_settings --noinput | 57 bestanden, 0 Fehler, 0 Skips, PostgreSQL im Container |
-| Docker smoke_hls | PASS: echter Admin-1080p-MP4-Upload, Redis/RQ, Linux-Worker, FFmpeg, drei Qualitaeten, geschuetzte Datei-GETs |
-| Echter Redis-Cache | set/get/delete im Smoke erfolgreich, getrennt von Queue |
-| Healthchecks | Backend, DB und Redis healthy, Worker laeuft |
-| Ruff E/F ohne generierte Migrationen | Keine Fehler |
-| AST-Funktionslaengen Apps/core inkl. Tests | Keine Funktion ueber 14 physische Zeilen |
-| Git-Historie/Ignore/Remote | Historische Django-Schluessel gefunden; keine versionierte .env, keine Credentials in Remote-URL |
-
-57 ist die Anzahl unterschiedlicher Tests je finaler Suite, nicht 114 Tests.
-Der Smoke-Test ist zusaetzlich. Sein erwartetes anonymes 401 erscheint als
-Unauthorized im Log. Unit-/API-Tests isolieren Mail/Cache im Prozess und mocken
-gezielte Queue-/Konvertierungsfehler; der Smoke verwendet echte Redis-/RQ-/FFmpeg-
-Integration. Externe SMTP-Zustellung und Browser-/Frontend-Funktion nicht getestet.
-
-## Risiken und Sicherheitsbefunde
-
-- Historische core/settings.py-Versionen enthalten hart codierte Django-Schluessel,
-  u.a. ac3b31b2 und b2c190c8 sowie spaetere Entwicklungsschluessel. Werte werden
-  nicht ausgegeben. Aktuell wird SECRET_KEY aus der Umgebung verlangt. Der
-  vorhandenen ignorierten .env wurde lokal ein neuer zufaelliger Schluessel und
-  DEBUG=true fuer HTTP-Entwicklung hinzugefuegt. Lokale DB-Zugangsdaten blieben
-  unveraendert. Falls historische Schluessel deployed verwendet wurden: dort
-  rotieren und alte Sessions/JWTs verwerfen. History-Cleanup nur koordiniert
-  separat entscheiden. Der Musterscan garantiert keine vollstaendige Geheimnisfreiheit.
-- SMTP benoetigt externe Zugangsdaten. Console-/Outbox-/HTML-Versand und Links
-  sind geprueft; echte Postfachzustellung bleibt offen.
-- Akademie-Frontend und Original-Mailvorlage fehlen. UI/Player/Responsivitaet,
-  Rechtsseiten und Originaldesign sind nicht abgenommen.
-- Eine Pflicht zum konkreten Akademie-Docker-Setup ist den vorhandenen Dateien
-  nicht zu entnehmen. Falls dieses zwingend ist, Originaldateien nachreichen und
-  abgleichen. Das eigene funktionierende Setup wird nicht als Original ausgegeben.
-- Kein oeffentliches Deployment: HTTPS/Static-Proxy, echte Hosts/Origins, SMTP und
-  rechtliche Angaben separat konfigurieren. Lokales DEBUG=true ist kein
-  Produktionsprofil. Medien nie pauschal oeffentlich ausliefern.
-- Die Konvertierung haelt eine DB-Transaktion/Zeilensperre. PROCESSING ist extern
-  bis zum Abschluss nicht sichtbar; paralleles Bearbeiten desselben Videos kann
-  warten. Fuer diesen Projektumfang akzeptiert.
-- Quellen unter 480p werden FAILED; 720p wird nicht kuenstlich zu 1080p skaliert.
-  Fehlende Qualitaeten liefern 404; eine Discovery-API ist nicht vorgegeben.
-- Admin validiert Upload-Endungen, FFprobe prueft Inhalt im Worker. Thumbnails
-  werden separat hochgeladen, nicht automatisch extrahiert.
-- Registrierung weist Duplikate allgemein mit 400 zurueck. 201 gegen 400 laesst
-  indirekte Enumeration weiterhin zu; keine absolute Anonymitaet behauptet und
-  kein geforderter API-Vertrag aufgehoben.
-- Vorhandene lokale Medien wurden nicht verschoben/geloescht. Eigene Altdateien
-  bei Bedarf aus videos/thumbnails/hls nach media kopieren.
-
-## Vollstaendiger Start
-
-Im Repository-Root unter PowerShell, bei Erstinstallation ohne vorhandene .env:
-
-```powershell
-Copy-Item .env.example .env
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-# .env bearbeiten: eigenen SECRET_KEY und DB_PASSWORD setzen.
-# Vorhandene .env erhalten und nur fehlende Variablen ergaenzen.
-docker compose config --quiet
-docker compose up --build -d
-docker compose exec backend python manage.py createsuperuser
-docker compose exec backend python manage.py check
-docker compose exec backend python manage.py makemigrations --check --dry-run
-docker compose exec backend python manage.py test --settings=core.test_settings --noinput
-docker compose exec backend python manage.py smoke_hls
-docker compose ps
+```text
+auth_app/  video_app/  core/  docs/  scripts/  docker/academy/
+videoflix_backend/     Nur 8 alte .pyc-Dateien, keine Quellmodule
+Videoflix_frontend/    109 unversionierte Dateien, 31 MB
+.ruff_cache/  .vscode/ env/  .env
+Dockerfile  compose.yaml  .env.example
 ```
 
-Administration: http://localhost:8000/admin/. Frontend separat starten.
-README.md beschreibt lokale PostgreSQL-/Redis-/Windows-Worker-/FFmpeg-Einrichtung.
+Nachher, versionierter Backend-Umfang:
 
-## Abgabeempfehlung
+```text
+auth_app/                 Modelle, Serializer, Utils, Views, Mailservice
+  migrations/             Unveraendert an den Django-Pfaden
+  templates/auth_app/     HTML und zwei Plaintext-Vorlagen
+  static/auth_app/        Inline-Mail-Logo
+  tests.py, test_emails.py
+video_app/                Bestehende API/HLS/RQ-Struktur und tests.py
+core/                     Hauptsettings und getrennter Akademie-Adapter/-Tests
+scripts/                  prepare_academy.py, academy.ps1, check_submission.py
+docker/academy/           Eigene Erweiterung und unveraenderte Originale
+docs/                     API/PDF, requirements.md, Architektur, aktuelle Abnahme
+  email_reference/        Backend-Mailreferenzen mit Herkunft/Lizenz
+  history/                Klar gekennzeichneter historischer Bericht
+pyproject.toml            Reproduzierbare Ruff-Konfiguration
+.gitignore .dockerignore .gitattributes .env.example
+Dockerfile compose.yaml manage.py requirements.txt README.md
+```
 
-Backend-Code und eigener Docker-Stack sind technisch fuer die Backend-Durchsicht
-bereit. Die vollstaendige Erfuellung aller PDF-Punkte kann ohne Frontend-Abgleich,
-Original-Maildesign und abschliessende Einreichungspruefung nicht bestaetigt werden.
-Vor Gesamtabgabe Frontend-Punkte pruefen, SMTP testen und gegebenenfalls die Pflicht
-zum Akademie-Docker-Setup klaeren. Anschliessend selbst committen/pushen und den
-GitHub-Link einreichen.
+Entfernt wurde ausschliesslich der gepruefte alte Bytecode-Baum videoflix_backend/
+und der alte Ruff-Cache. Ruff hat seinen nun ignorierten Cache danach neu erzeugt.
+Keine Imports, Source-Dateien oder Git-Eintraege verwendeten den Restordner.
+Django-Migrationen und alle notwendigen __init__.py blieben erhalten.
 
-## Geaenderte und neue Dateien
+Das Frontend bleibt lokal erhalten und ist jetzt explizit in Git/Docker ignoriert.
+Vor der Bereinigung wurden alle 109 Dateien kopiert und per SHA-256 verglichen.
+Nach den lokalen Demo-/Testkorrekturen wurde die finale Fassung erneut verifiziert:
+`../Videoflix_frontend-final-backup-20261022-092033/` mit separatem Hashmanifest.
+Die erste Sicherung `../Videoflix_frontend-backup-20261022-090410/` blieb erhalten.
+Das Frontend wird nicht mit dem Backend gestaged. env/, .env, IDE-Daten und lokale
+Medien bleiben lokal; keine Datenbank-/Medienvolumes wurden geloescht.
 
-- `.dockerignore`
-- `.env.example`
-- `.gitignore`
-- `Dockerfile`
-- `README.md`
-- `auth_app/admin.py`
-- `auth_app/authentication.py`
-- `auth_app/migrations/0002_alter_user_managers.py`
-- `auth_app/models.py`
-- `auth_app/serializers.py`
-- `auth_app/services.py`
-- `auth_app/templates/auth_app/email.html`
-- `auth_app/tests.py`
-- `auth_app/urls.py`
-- `auth_app/utils.py`
-- `auth_app/views.py`
-- `compose.yaml`
-- `core/middleware.py`
-- `core/settings.py`
-- `core/test_settings.py`
-- `core/urls.py`
-- `docs/ABGABE_CHECK.md`
-- `docs/architecture.md`
-- `requirements.txt`
-- `video_app/admin.py`
-- `video_app/hls.py`
-- `video_app/management/__init__.py`
-- `video_app/management/commands/__init__.py`
-- `video_app/management/commands/smoke_hls.py`
-- `video_app/migrations/0003_video_hls_job_id_alter_video_thumbnail_file_and_more.py`
-- `video_app/models.py`
-- `video_app/serializers.py`
-- `video_app/signals.py`
-- `video_app/tasks.py`
-- `video_app/tests.py`
-- `video_app/urls.py`
-- `video_app/utils.py`
-- `video_app/views.py`
+## Refactoring und Kommentare
 
-Zusaetzlich wurde die ignorierte lokale `.env` um einen zufaelligen SECRET_KEY
-und DEBUG=true ergaenzt. Keine Zugangsdaten werden hier wiedergegeben.
-Die neuen Migrationen wurden auch auf der lokalen PostgreSQL-Datenbank angewendet.
+- Vier reine Dictionary-Helfer aus auth_app/views.py nach utils.py verschoben;
+  Views behalten Response-Erzeugung. Statuscodes, JSON-Felder und URLs unveraendert.
+- Deutsche Abschnittsbanner und generierte Tutorial-Kommentare aus eigenem Code
+  entfernt; Settings sowie ASGI/WSGI enthaelt nur relevante Konfiguration.
+- Den ungenutzten BACKEND_API_URL-Setting entfernt; keine aktive Verwendung vorhanden.
+- Authentifizierung, RQ-Commit-Hooks und lange HLS-Zeilensperre mit englischen
+  Sicherheits-/Architekturhinweisen dokumentiert.
+- Signalregistrierung nutzt import_module nach App-Initialisierung statt F401-noqa.
+  Die gezielten F403/F401-Ausnahmen in vererbten Django-Settings bleiben notwendig.
+- Ueberzaehlige Leerzeilen und zwei Importgruppen bereinigt. Keine breitflaechige
+  Neuformatierung; historische Migrationen und Akademie-Originale nicht editiert.
+- Ruff E/F/I zentral konfiguriert. Genau die 13 bekannten E501-Zeilen zweier
+  Initialmigrationen und die Importreihenfolge einer generierten Migration ausgenommen.
+- Video-API-Tests isolieren ihren Cache auch beim normalen manage.py test-Aufruf,
+  statt den laufenden Redis-Cache zu leeren oder einen lokalen Redis vorauszusetzen.
+
+Funktionszaehlung: Die PDF nennt maximal 14 Zeilen, aber keine Zaehldefinition.
+Unsere konservative AST-Pruefung zaehlt def bis letztes Statement einschliesslich
+Signatur, Leerzeilen und Docstrings, ohne ausserhalb liegende Decorators.
+**42 eigene Python-Dateien, 207 Funktionen: keine Ueberschreitung.**
+Generierte Migrationen und unveraenderte Originalvorlagen sind ausgenommen.
+setUp/tearDown sind die einzigen Namensausnahmen als vorgegebene Django-Testhooks.
+Die bestehende tests.py-Struktur ist ausreichend; kein unnoetiger Paketumbau.
+
+## Mailvorlagen und rechtliche Inhalte
+
+Aktivierung und Reset entsprechen jetzt dem Aufbau der gelieferten Vorlagen:
+weisser Hintergrund, Logo, blauer Button, passende Betreff-/Textversionen und
+Signatur. Das Logo ist als CID-PNG eingebettet; keine Remote-Bildabfrage noetig.
+HTML escapt untrusted names; die Plaintext-Vorlage escapt Links absichtlich nicht.
+Tests pruefen beide Varianten, echte gueltige Tokens, HTML-Escaping und CID-Anhang.
+
+Die Designabbildung sagt 24 Stunden, Django ist bisher auf 72 Stunden eingestellt.
+Der neue Text zeigt den tatsaechlichen Timeout; die bisherige Tokenlaufzeit wird
+nicht durch ein rein optisches Refactoring veraendert. Ein 24h-Override ist getestet.
+Vier Browser-Renderings (390/900px, jeweils Aktivierung/Reset) bestanden; Logo und
+Umbruch sind visuell geprueft. Das ersetzt keine echten Mailclient-/SMTP-Tests.
+Ein Versuch mit echten SMTP-Daten erfolgte nicht, weil weder Testkonto noch
+Empfaenger freigegeben wurden.
+
+Die separaten Rechtsseiten enthielten Lorem ipsum bzw. Max Mustermann/Sample Street.
+Sie sind nun explizit als unvollstaendige Kursdemo gekennzeichnet; Frontend-Herkunft
+und die gelieferte Akademie-Attribution sind ergaenzt. Keine reale Identitaet oder
+Rechtserklaerung wurde erfunden. Fertige anwendbare Inhalte muessen vom Betreiber
+bereitgestellt werden; vor oeffentlichem Deployment bleiben sie offen.
+
+## Anforderungstabelle
+
+ERFUELLT bezieht sich jeweils auf den in der Zeile genannten Umfang.
+
+| Anforderung | Status | Datei | Nachweis |
+|---|---|---|---|
+| DRF, getrennte Frontend-/Backend-Kommunikation | ERFUELLT | core/urls.py, auth_app/, video_app/ | Quellcode und HTTP-/Browsertests |
+| Registrierung email/password/confirmed_password | ERFUELLT | auth_app/serializers.py, views.py | API-Tests und Chromium |
+| Pflichtfelder, deaktivierter Registerbutton, Formularwechsel | ERFUELLT | Separates pages/auth/ | Chromium; Backend-Repo enthaelt das Frontend nicht |
+| Inaktiver Account bis Aktivierung | ERFUELLT | RegistrationSerializer, ActivationView | Gueltige/ungueltige/abgelaufene Tokens und Login vor Aktivierung |
+| Allgemeine Fehler bei Login/Registrierung | ERFUELLT | Serializer und LoginView | Keine spezifische Kontoauskunft im Fehlertext; Duplikate weiterhin HTTP 400 |
+| Login, Weiterleitung, JWT-HttpOnly-Cookies | ERFUELLT | CookieJWTAuthentication, LoginView | API-Cookiepruefung und Chromium; keine JWTs im Local Storage |
+| CSRF/CORS und Token-Refresh | ERFUELLT | core/middleware.py, auth_app/views.py | CSRF-401/403-Tests, Origin-Tests, Browser-Refresh |
+| Logout und gesperrte Sitzung | ERFUELLT | LogoutView, utils.py | Cookie-Loeschung, Refresh-Blacklist, gespeichertes Access-Token abgelehnt |
+| Passwort vergessen und allgemeine Antwort | ERFUELLT | PasswordResetRequestView | Bekannte/unbekannte Mail gleicher Body/Status |
+| Neues Passwort, Replay-/Expiry-Schutz | ERFUELLT | PasswordResetConfirmView | API-Tests und Browser-Reset/neuer Login |
+| Akademie-Maildesign, HTML/Text, Frontendlinks | ERFUELLT | services.py, templates/, static/ | 3 neue Mailtests, 4 Renderings und Chromium-Aktivierung/Reset |
+| Echte Mailclient-/SMTP-Zustellung | OFFEN | EMAIL_*-Deployment-Konfiguration | Keine autorisierten Testdaten; nicht als erfolgreich behauptet |
+| Videoliste mit exakt sechs Vertragsfeldern | ERFUELLT | VideoSerializer | Feldmengen-/API-Tests |
+| Nur PUBLIC, geschuetzte Metadaten/Thumbnails | ERFUELLT | VideoListView, ThumbnailView | Anonym 401, private Ressourcen 404 |
+| Genre, Erstellungsdatum DESC, Titel/Thumbnail/Hero | ERFUELLT | video_app/, separates Frontend | Sortierungstest und Chromium-Dashboard |
+| Geschuetzte Playlists/Segmente und sichere Pfade | ERFUELLT | hls.py, utils.py, views.py | MIME-/Traversal-/Berechtigungstests und echter Smoke |
+| HLS-Konvertierung 480p/720p/1080p | ERFUELLT | FFmpeg/RQ-Pipeline | Echter 1080p-Upload in beiden Docker-Profilen |
+| Manuelle Qualitaet, Play/Pause/Spulen/Vollbild | ERFUELLT | Separater hls.js-Player | 3 dekodierte Qualitaeten; native Media-/Fullscreen-APIs mit controls im Browser getestet |
+| PostgreSQL statt SQLite | ERFUELLT | Beide Compose-Profile | Lokale/Docker-Testdatenbanken und Migrationen |
+| Redis-Cache und Backgroundtasks mit Django RQ | ERFUELLT | utils.py, signals.py, tasks.py | Echter Cache/Queue/Worker im Smoke |
+| Keine Doppeljobs/Jobs nach Rollback | ERFUELLT | signals.py, hls.py | UUID-/Commit-/Duplicate-/Stale-Tests |
+| Vollstaendiger Docker-Start | ERFUELLT | docker/academy/compose.compat.yaml | Build/up --wait, Migrationsgate, Web/DB/Redis/Worker |
+| Offizielle Docker-Dateien unveraendert | ERFUELLT | docker/academy/original/, upstream.json | 6 Git-Blob-Hashes identisch; Original-main erneut verifiziert |
+| Eigene Erweiterung klar getrennt | ERFUELLT | core/academy*, docker/academy/, scripts/ | Offizieller username-Konflikt dokumentiert; keine Modellmigration |
+| Funktionen <=14 Zeilen und snake_case | ERFUELLT | Eigener Python-Code | scripts/check_submission.py; dokumentierte Hook-Ausnahmen |
+| Schlanke Views und passende Django-Dateien | ERFUELLT | Views, utils/services, models/serializers | Quellcode-Audit; Datenhelfer verschoben |
+| Imports/Kommentare, kein auskommentierter Altcode | ERFUELLT | Eigener Python-Code | Ruff E/F/I und Kommentar-/Docstring-Audit |
+| Nachvollziehbare aktuelle Dokumentation | ERFUELLT | README, architecture.md, dieser Bericht | Veraltete Aussagen ins gekennzeichnete Archiv verschoben |
+| Nur Backend im Abgabe-Repo | ERFUELLT | .gitignore, .dockerignore | Frontend ignoriert; SHA-256-gepruefte Sicherung ausserhalb |
+| Footer/Rechtsseiten responsiv und erreichbar | ERFUELLT | Separates Demo-Frontend | Chromium bei 390px; Attribution ergaenzt |
+| Fertige verstaendliche Rechtsinhalte | TEILWEISE | Separates privacy/imprint | Demo-Status ehrlich markiert; keine echten Angaben geliefert |
+| Git-Sicherheit und kleine Commits | ERFUELLT | .gitignore, .gitattributes, Git-Historie | Index-/Historienpruefung, keine echten Runtime-Secrets gestaged |
+| GitHub-Abgabe | TEILWEISE | origin/main | Commit-/Push-Ergebnis im Abschlussbericht; keine Einreichung durch die Akademie bestaetigt |
+
+## Neue Tests nach dem Cleanup
+
+| Pruefung | Ergebnis am 22.10.2026 |
+|---|---|
+| Lokales manage.py check | Keine Probleme |
+| Lokales makemigrations --check --dry-run | Keine Aenderung |
+| Lokales manage.py test --noinput | 63 bestanden, 23.940s, keine Skips |
+| Lokales core.test_settings | 63 bestanden, 1.697s |
+| Eigenes Docker-Profil: Build/up --wait | Bestanden, vorhandene Volumes erhalten |
+| Eigenes Docker-Profil: check/Migrationspruefung | Bestanden |
+| Eigenes Docker-Profil: core.test_settings | 63 bestanden, 1.284s |
+| Eigenes Docker-Profil: smoke_hls | PASS: echter Upload/Cache/RQ/3 Qualitaeten/Auth |
+| Akademie-Profil: Original-Dockerfile Build/up --wait | Bestanden; Originaldateien unveraendert |
+| Akademie-Profil: check/Migrationspruefung/pip check | Bestanden, keine offenen Migrationen/Abhaengigkeitsfehler |
+| Akademie-Profil: core.academy_test_settings | 63 bestanden, 0.772s |
+| Akademie-Profil: smoke_hls | PASS: echter Upload/Cache/RQ/3 Qualitaeten/Auth |
+| Ruff 0.17.1, ruff check . | Keine Fehler mit gezielten historischen Ausnahmen |
+| AST-/Git-Pfadpruefung | 42 Dateien, 207 Funktionen <=14, keine unerlaubten versionierten Pfade |
+| Frontend Node-Tests | 7 bestanden |
+| Frontend JS-Syntax | Alle 8 eigenen JS-Dateien bestanden; kein Bundler/Linter eingerichtet |
+| Chromium nach Cleanup | Vollstaendiges Szenario bestanden, alle 3 Qualitaeten dekodiert, keine pageerror |
+| Native Playersteuerung | pause/play/currentTime/requestFullscreen/exitFullscreen im Chromium geprueft |
+| Mailvorschau | 4 Renderings bei 390/900px; eingebettetes Logo geladen, kein horizontaler Overflow |
+
+Der erste Browserlauf nach dem Mailumbau fand einen Fehler im Test-Linkparser:
+Er nahm ein schliessendes HTML-Anfuehrungszeichen aus der jetzt ASCII-lesbaren
+Konsolenmail in den Token auf. Der Parser wurde auf die tatsächlichen uid/token-
+Zeichen begrenzt und der Aktivierungsstatus wird zusaetzlich explizit geprueft.
+Das korrigierte Szenario wurde vollstaendig erneut ausgefuehrt. Leere Listen,
+HTTP-500 und fehlende Manifeste sind absichtlich simulierte Browser-Fehlerfaelle;
+API, Cookies, echte HLS-Segmente und Videodekodierung wurden nicht gemockt.
+
+Nicht erneut/extern nachgewiesen: SMTP, Outlook/Gmail/iOS-Mail, Safari/iOS-HLS und
+Firefox. Diese Grenzen werden nicht durch bestehende Unit-Tests als Erfolg ersetzt.
+
+## Sicherheit, Git und Abgabeempfehlung
+
+Vor neuen Commits wurden 35 erreichbare Git-Commits musterbezogen untersucht.
+Neun historische settings.py-Staende enthalten einen hart codierten Django-
+Entwicklungsschluessel. Werte werden nicht ausgegeben. Keine versionierte .env
+und keine privaten Schluesseldateien gefunden. Aktuelle lokale Root-/Akademie-
+Secrets stimmen mit diesen historischen Literalen nicht ueberein. Bereits frueher
+veroeffentlichte Schluessel gelten trotzdem als kompromittiert: Falls sie anderswo
+noch verwendet werden, dort rotieren und alte Sessions/JWTs verwerfen. Keine
+History-Rewrite-Aktion durchgefuehrt. Der Musterscan ist kein absoluter Geheimnisbeweis.
+
+Offizielle .env.template-Beispielwerte bleiben aus Gruenden der Originaltreue in
+der Referenzdatei; sie sind oeffentliche Beispiele und werden nicht ausgefuehrt.
+Runtime-.env, virtuelle Umgebungen, Medien, HLS, Frontend und Caches bleiben aus
+Git und Build-Kontext ausgeschlossen. Vor jedem Commit werden Status, gezielter
+Index-Diff und diff --check geprueft. origin/main war vor den neuen Commits identisch
+mit HEAD; unerwartete Remote-Aenderungen werden nicht automatisch integriert.
+Nach den getrennten Commits werden die relevanten Tests erneut ausgefuehrt.
+Der Push wird nur bei bestandenen Tests und ohne offene aktuelle Secret-Befunde
+versucht; das tatsaechliche Ergebnis steht im Abschlussbericht.
+
+**Backend-Empfehlung:** Das gepruefte Backend samt getrenntem Akademie-Adapter kann
+technisch zur Backend-Durchsicht eingereicht werden. Fuer die uneingeschraenkte
+Bewertung aller PDF-Punkte bleibt das Projekt **NICHT ABGABEBEREIT**, solange die
+Rechtsinhalte der Demo nicht fertiggestellt sind und die genannten externen
+Mailnachweise fehlen. Ein erfolgreicher Push ersetzt keine fachliche Abnahme.

@@ -1,39 +1,50 @@
-# Videoflix - implementierte Architektur
+# Implemented architecture
 
-Stand: 21.10.2026. Verbindlich sind die PDF-Checkliste und die API-Dokumentation.
-Dieses Dokument beschreibt den vorhandenen Stand; Abnahme und Risiken stehen in
-`ABGABE_CHECK.md`, konkrete Startbefehle in `../README.md`.
+The API and PDF in this directory define the contract; requirements.md is a derived
+index. Current evidence and limitations are in ABGABE_CHECK.md.
 
-Separates Frontend -> Django/DRF -> PostgreSQL.
-Django -> Redis DB 0 (RQ) -> Linux-RQ-Worker -> FFprobe/FFmpeg -> persistentes Media-Volume.
-Django -> Redis DB 1 (Video-Metadaten-Cache, 60 Sekunden).
+A separately maintained Vanilla JavaScript frontend calls Django REST Framework.
+Django stores users and video metadata in PostgreSQL. Redis database 0 runs RQ;
+database 1 caches public video metadata for 60 seconds. Authentication and current
+visibility are checked before metadata/file delivery; cache entries are not HTTP
+responses and contain no JWTs. Cache failures fall back to the database.
 
-`auth_app` besitzt das E-Mail-Usermodell und die dokumentierten Auth-Endpunkte.
-CookieJWTAuthentication prueft JWT, Passwortaenderung, Sitzungsblacklist und CSRF.
-Refresh prueft Benutzerstatus und Passwortstand separat. E-Mail-Links gehen zum
-Frontend; Plaintext und eigenes responsives HTML werden gemeinsam versendet.
+`auth_app` owns the email-based User and API serializers/views. Dictionary helpers
+live in utils.py; views construct Responses. CookieJWTAuthentication checks token
+validity, password revocation, refresh-session blacklist and CSRF for writes.
+Refresh separately checks active user/password state. Logout blacklists the session
+and expires both cookies. Login/refresh/logout also require CSRF when unauthenticated.
 
-`video_app` liefert eine flache, nach Erstellungsdatum absteigende PUBLIC-Liste.
-Genres sind `category`-Anzeigewerte; Gruppen bildet das Frontend. Geschuetzte
-Thumbnails und HLS-Assets werden ausschliesslich nach Authentifizierung und
-aktueller Sichtbarkeitspruefung gelesen. Originaldateien werden nicht angeboten.
+services.py builds activation/reset links and multipart messages from escaped HTML
+and plain-text templates. Logo bytes are attached inline by CID. Message design
+comes from the supplied frontend references. Reset validity text reflects Django's
+actual timeout rather than changing working token behavior to match sample text.
 
-`pre_save` erkennt Quelldateiaenderungen und erzeugt eine neue Job-UUID.
-`post_save` registriert Queue- und Cache-Aktionen mit `transaction.on_commit`.
-RQ-Jobeindeutigkeit und DB-Zeilensperren verhindern doppelte Konvertierungen.
-Nur READY-Assets werden ausgeliefert. Fehler werden im Admin und in RQ sichtbar.
-Die lange Konvertierungstransaktion verbirgt PROCESSING bis zum Abschluss fuer
-andere Verbindungen und kann gleichzeitiges Bearbeiten desselben Videos blockieren.
+`video_app` returns a flat PUBLIC list in descending creation order. Thumbnails and
+HLS files require authenticated access and current public visibility. Original MP4s
+are not served. Genre grouping and manual quality selection belong to the frontend.
 
-FFmpeg generiert HLS in maximal der Quellaufloesung. Thumbnails werden separat
-hochgeladen, nicht automatisch durch FFmpeg erzeugt. MP4-Dateien unter 480p
-werden abgelehnt. API-Pfade und Formate bleiben gemaess `APIDoku_Videoflix (1).txt`.
+pre_save identifies actual source changes and assigns a new UUID. post_save queues
+RQ and cache invalidation only after transaction commit. RQ uniqueness plus a row
+lock serializes conversion and skips stale/finished jobs. The long conversion
+transaction keeps PROCESSING invisible until completion and can block concurrent
+editing of the same video. This behavior is documented, not silently refactored.
 
-`core` enthaelt Konfiguration, Origins/CSRF/CORS und Routing. `.env` bleibt lokal.
-Docker trennt Backend, einmalige Migrationen, DB, Redis und Worker. Die eigene
-Docker-Konfiguration ersetzt keine vorgegebenen Akademie-Dateien; solche lagen
-nicht vor. Admin-Static wird lokal mit Django bedient; oeffentliches Deployment
-benoetigt eine eigene TLS-/Static-Proxy-Konfiguration.
+FFprobe checks source height. FFmpeg emits supported 480p/720p/1080p versions without
+upscaling; under-480p files fail. Paths stay within MEDIA_ROOT. Playlists reference
+only protected segment URLs. Only READY assets are served. Queue/conversion failures
+are visible in processing_status/processing_error and RQ logs.
 
-Tests nutzen weiterhin PostgreSQL, isolieren aber Cache und E-Mail im Prozess.
-Der Smoke-Test verwendet die echte Queue, den laufenden Worker und Redis-Cache.
+core/settings.py supports the existing local profile. The isolated Academy settings
+module maps official environment names and static volume paths. The original
+Academy Dockerfile/Compose/entrypoint remain byte-identical; the separate override
+selects an email-aware bootstrap and foreground web/worker processes behind a
+one-shot migration gate. Sources are staged by allowlist; runtime secrets stay
+outside that image context. Existing database/media volumes are not reused across
+profiles. No schema migration was needed for cleanup.
+
+Tests use PostgreSQL. Unit/API tests isolate outbound email and metadata cache;
+the container smoke test deliberately uses real Redis, RQ and FFmpeg. Browser tests
+use real cookie-authenticated API/HLS and explicitly marked mocked error states.
+The Git repository excludes the course frontend, virtual environments and local
+runtime/media/cache files. Public deployment remains a separate configuration step.

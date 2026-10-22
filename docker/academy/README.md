@@ -115,6 +115,6 @@ Dockerfile/compose.yaml remain an independent local profile.
 
 The unextended original entrypoint is NOT compatible with our email-based User.
 This is an explicit, tested limitation, not an assertion that the unmodified
-upstream stack ran successfully. The extended Academy profile passed all 60 backend
+upstream stack ran successfully. The extended Academy profile passed all 63 backend
 tests and real HLS conversion, including a complete stop/start with persistent data.
 For remaining non-Docker submission points, see docs/ABGABE_CHECK.md.
