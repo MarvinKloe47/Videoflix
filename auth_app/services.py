@@ -1,9 +1,11 @@
+from email.mime.image import MIMEImage
+from pathlib import Path
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -37,39 +39,44 @@ def make_token(user):
 
 
 def send_activation_email(user):
-    send_mail(
-        subject="Videoflix - Konto aktivieren",
-        message=get_activation_message(user),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=render_email(get_activation_message(user)),
-    )
+    send_account_email(user, "activation", make_activation_link(user))
 
 
 def send_password_reset_email(user):
-    send_mail(
-        subject="Videoflix - Passwort zuruecksetzen",
-        message=get_password_reset_message(user),
+    send_account_email(user, "password_reset", make_password_reset_link(user))
+
+
+def send_account_email(user, kind, link):
+    context = email_context(user, kind, link)
+    message = EmailMultiAlternatives(
+        subject=context["subject"],
+        body=render_to_string(f"auth_app/{kind}.txt", context),
         from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=render_email(get_password_reset_message(user)),
+        to=[user.email],
     )
+    message.attach_alternative(render_to_string("auth_app/email.html", context),
+                               "text/html")
+    attach_email_logo(message)
+    message.send()
 
 
-def get_activation_message(user):
-    return (
-        "Willkommen bei Videoflix!\n\n"
-        "Klicke auf diesen Link, um dein Konto zu aktivieren:\n"
-        f"{make_activation_link(user)}"
-    )
+def email_context(user, kind, link):
+    activation = kind == "activation"
+    return {
+        "activation": activation,
+        "recipient": user.first_name or user.email,
+        "link": link,
+        "validity_hours": settings.PASSWORD_RESET_TIMEOUT // 3600,
+        "subject": "Confirm your email" if activation else "Reset your Password",
+        "button_label": "Activate account" if activation else "Reset password",
+    }
 
 
-def get_password_reset_message(user):
-    return (
-        "Du hast ein neues Videoflix-Passwort angefordert.\n\n"
-        "Klicke auf diesen Link, um ein neues Passwort zu setzen:\n"
-        f"{make_password_reset_link(user)}"
-    )
-
-def render_email(message):
-    return render_to_string("auth_app/email.html", {"message": message})
+def attach_email_logo(message):
+    # CID embedding keeps the supplied brand asset available without remote tracking.
+    path = Path(__file__).parent / "static" / "auth_app" / "email-logo.png"
+    logo = MIMEImage(path.read_bytes(), _subtype="png")
+    logo.add_header("Content-ID", "<videoflix-logo>")
+    logo.add_header("Content-Disposition", "inline", filename="videoflix-logo.png")
+    message.mixed_subtype = "related"
+    message.attach(logo)

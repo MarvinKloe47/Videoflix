@@ -1,2 +1,5 @@
 /docker/academy/original/* -text whitespace=cr-at-eol
 /docker/academy/*.sh text eol=lf
+
+# Preserve intentional Markdown line breaks in the supplied course license.
+/docs/email_reference/LICENSE.md whitespace=-blank-at-eol
