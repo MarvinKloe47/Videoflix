@@ -9,6 +9,7 @@ from .services import get_user_by_uid
 
 
 def validate_refresh_user(refresh):
+    """Reject refresh after account deactivation or a password change."""
     user = get_user_model().objects.filter(pk=refresh["user_id"]).first()
     if user is None or not user.is_active:
         raise TokenError("Invalid user")
@@ -17,6 +18,7 @@ def validate_refresh_user(refresh):
 
 
 def expire_jwt_cookie(response, key, path):
+    # Deletion must use the same path as the original cookie.
     response.set_cookie(
         key=key,
         value="",
@@ -46,6 +48,7 @@ def blacklist_refresh_token(raw_token):
 
 
 def set_access_cookie(response, refresh):
+    # HttpOnly prevents JavaScript access; Secure requires HTTPS outside DEBUG.
     response.set_cookie(
         key="access_token",
         value=str(refresh.access_token),
@@ -58,6 +61,7 @@ def set_access_cookie(response, refresh):
 
 
 def set_refresh_cookie(response, refresh):
+    # Restrict the longer-lived refresh cookie to API requests.
     response.set_cookie(
         key="refresh_token",
         value=str(refresh),
@@ -90,6 +94,7 @@ def raise_invalid_reset_token():
 
 
 def registration_response(user):
+    # The Academy API includes this activation token as demonstration data.
     return {
         "user": {"id": user.id, "email": user.email},
         "token": default_token_generator.make_token(user),

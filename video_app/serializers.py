@@ -18,6 +18,7 @@ class VideoSerializer(serializers.ModelSerializer):
         ]
 
     def to_representation(self, instance):
+        # Copy cached data before formatting dates and adding a request-specific URL.
         data = dict(cached_video_metadata(instance))
         data["created_at"] = serializers.DateTimeField().to_representation(
             data["created_at"]

@@ -17,6 +17,7 @@ from .utils import invalidate_video_cache
 logger = logging.getLogger(__name__)
 
 
+# A new upload may keep the same filename; _committed detects unsaved file data.
 @receiver(pre_save, sender=Video)
 def track_source_change(sender, instance, update_fields=None, **kwargs):
     if update_fields is not None and "video_file" not in update_fields:
@@ -35,6 +36,7 @@ def track_source_change(sender, instance, update_fields=None, **kwargs):
 
 
 def reset_processing(instance):
+    # A new ID lets workers ignore queued jobs for an older source file.
     instance.hls_job_id = uuid.uuid4()
     instance.processing_status = "PENDING"
     instance.processing_error = ""
@@ -43,6 +45,7 @@ def reset_processing(instance):
 
 @receiver(post_save, sender=Video)
 def enqueue_hls_processing(sender, instance, **kwargs):
+    # Workers and cache readers must only see changes that were committed.
     transaction.on_commit(lambda: invalidate_video_cache(instance.pk))
     if settings.VIDEO_ENQUEUE_HLS_JOBS and getattr(instance, "_source_changed", False):
         job_id = str(instance.hls_job_id)
@@ -54,6 +57,7 @@ def clear_deleted_video_cache(sender, instance, **kwargs):
     transaction.on_commit(lambda: invalidate_video_cache(instance.pk))
 
 
+# RQ uniqueness prevents repeated saves from queuing the same upload twice.
 def enqueue_hls_job(video_id, job_id):
     try:
         django_rq.enqueue(

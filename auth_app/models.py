@@ -5,6 +5,7 @@ from .managers import UserManager
 
 
 class User(AbstractUser):
+    """Use email for login while keeping Django's password and permission fields."""
     username = None
     email = models.EmailField(unique=True)
 

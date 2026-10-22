@@ -25,6 +25,7 @@ HLS_RESOLUTIONS = {
 
 @transaction.atomic
 def process_video_to_hls(video_id, job_id=None):
+    """Lock one video and ignore jobs for replaced or already processed uploads."""
     video = Video.objects.select_for_update().filter(pk=video_id).first()
     if video is None:
         return True
@@ -82,6 +83,7 @@ def prepare_output_root(video):
 
 
 def get_hls_output_root(video):
+    # Resolve paths before checking containment, including any symbolic links.
     media = Path(settings.MEDIA_ROOT).resolve()
     root = (media / settings.VIDEO_HLS_OUTPUT_DIR / str(video.pk)).resolve()
     if not root.is_relative_to(media) or root == media:
@@ -90,6 +92,7 @@ def get_hls_output_root(video):
 
 
 def get_target_resolutions(video):
+    # Avoid upscaling; a source below 480p has no supported target resolution.
     source_height = probe_video_height(video.video_file.path)
     return {
         name: height
@@ -140,6 +143,7 @@ def convert_resolution(video, output_root, resolution, height):
 
 
 def build_ffmpeg_command(source_path, output_dir, height):
+    # scale=-2 preserves aspect ratio with even width; HLS uses H.264/AAC here.
     return [settings.FFMPEG_BINARY, "-y", "-protocol_whitelist", "file,pipe",
             "-i", source_path,
             "-vf", f"scale=-2:{height}", "-c:v", "libx264", "-c:a", "aac",
@@ -153,6 +157,7 @@ def execute_ffmpeg(command):
 
 
 def rewrite_manifest_segments(video, manifest_path, resolution):
+    """Route segment requests through the authenticated API, not raw media URLs."""
     lines = manifest_path.read_text().splitlines()
     rewritten = [rewrite_manifest_line(video, resolution, line) for line in lines]
     manifest_path.write_text("\n".join(rewritten) + "\n")

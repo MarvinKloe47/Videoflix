@@ -70,6 +70,7 @@ def invalid_refresh_token_response():
 
 
 def create_login_response(user):
+    # Copy the refresh ID into access tokens so logout can revoke the session.
     refresh = RefreshToken.for_user(user)
     refresh["session_id"] = refresh["jti"]
     response = Response(login_response_data(user))
@@ -87,6 +88,7 @@ def create_token_refresh_response(refresh):
 
 
 class RegistrationView(APIView):
+    # A new account must be reachable without an existing authentication cookie.
     authentication_classes = []
     permission_classes = []
 
@@ -100,6 +102,7 @@ class RegistrationView(APIView):
 
 
 class ActivationView(APIView):
+    """Activate an inactive account only after checking its signed token."""
     authentication_classes = []
     permission_classes = []
 
@@ -118,6 +121,7 @@ class ActivationView(APIView):
 
 
 class PasswordResetRequestView(APIView):
+    # Return the same success message whether or not an active account exists.
     authentication_classes = []
     permission_classes = []
 
@@ -131,6 +135,7 @@ class PasswordResetRequestView(APIView):
 
 
 class PasswordResetConfirmView(APIView):
+    # Saving a new password also invalidates existing password-reset tokens.
     authentication_classes = []
     permission_classes = []
 
@@ -148,6 +153,7 @@ class PasswordResetConfirmView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class TokenRefreshView(APIView):
+    # An expired access token must not prevent validation of the refresh cookie.
     authentication_classes = []
     permission_classes = []
 
@@ -165,6 +171,7 @@ class TokenRefreshView(APIView):
 
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
+    # CSRF protection also applies before a user is authenticated.
     authentication_classes = []
     permission_classes = []
 
@@ -180,6 +187,7 @@ class LoginView(APIView):
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class CSRFTokenView(APIView):
+    # Expose a masked CSRF token, never the HttpOnly JWT cookies.
     authentication_classes = []
     permission_classes = []
 

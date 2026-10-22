@@ -5,6 +5,7 @@ from .models import User
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
+    # Accept the API field name and the existing frontend's alternative spelling.
     confirm_password = serializers.CharField(write_only=True, required=False)
     confirmed_password = serializers.CharField(write_only=True, required=False)
 
@@ -14,6 +15,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         extra_kwargs = {"password": {"write_only": True}, "email": {"validators": []}}
 
     def validate_email(self, value):
+        # Replace the default uniqueness message with a generic registration error.
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Registrierung nicht moeglich.")
         return value.lower()
@@ -27,6 +29,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        # Confirmation fields are not stored; set_password hashes the password.
         remove_password_confirmations(validated_data)
         password = validated_data.pop("password")
         user = User(**validated_data)

@@ -16,6 +16,7 @@ def encode_user_pk(user):
 
 
 def get_user_by_uid(uidb64):
+    """Treat malformed IDs and deleted users as invalid account links."""
     User = get_user_model()
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
@@ -25,11 +26,13 @@ def get_user_by_uid(uidb64):
 
 
 def make_activation_link(user):
+    # The frontend reads these parameters and calls the activation API.
     params = urlencode({"uid": encode_user_pk(user), "token": make_token(user)})
     return f"{settings.FRONTEND_ACTIVATION_URL}?{params}"
 
 
 def make_password_reset_link(user):
+    # The frontend collects the new password before posting it with this token.
     params = urlencode({"uid": encode_user_pk(user), "token": make_token(user)})
     return f"{settings.FRONTEND_PASSWORD_RESET_URL}?{params}"
 
@@ -47,6 +50,7 @@ def send_password_reset_email(user):
 
 
 def send_account_email(user, kind, link):
+    """Send plain text and HTML alternatives with an embedded logo."""
     context = email_context(user, kind, link)
     message = EmailMultiAlternatives(
         subject=context["subject"],

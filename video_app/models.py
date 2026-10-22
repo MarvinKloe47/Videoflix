@@ -60,6 +60,7 @@ class Video(models.Model):
     hls_job_id = models.UUIDField(default=uuid.uuid4, editable=False)
 
     def save(self, *args, **kwargs):
+        # Source-change signals update these fields even during a partial save.
         fields = kwargs.get("update_fields")
         if fields and "video_file" in fields:
             kwargs["update_fields"] = set(fields) | {

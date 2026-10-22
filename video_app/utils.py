@@ -18,6 +18,7 @@ def invalidate_video_cache(video_id):
 
 
 def cached_video_metadata(video):
+    # Cache only metadata; access and visibility checks stay outside the cache.
     try:
         return cache.get_or_set(f"video:{video.pk}", lambda: video_metadata(video), 60)
     except Exception:
@@ -40,6 +41,7 @@ def get_public_video(movie_id):
 
 
 def get_hls_asset(video, resolution, filename):
+    # Partial or failed conversions must not expose unfinished stream files.
     if video.processing_status != "READY":
         raise Http404("Video is not ready.")
     validate_resolution(resolution)

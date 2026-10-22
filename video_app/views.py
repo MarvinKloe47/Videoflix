@@ -22,6 +22,7 @@ class VideoDetailView(generics.RetrieveAPIView):
 
 
 class HLSManifestView(APIView):
+    # Both playlists and segments require authentication and current visibility.
     permission_classes = [IsAuthenticated]
 
     def get(self, request, movie_id, resolution):
@@ -44,6 +45,7 @@ class HLSSegmentView(APIView):
 
 
 class VideoThumbnailView(APIView):
+    # Serve thumbnails through the same access checks as their videos.
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
