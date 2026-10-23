@@ -3,7 +3,7 @@
 import os
 
 from .settings import *  # noqa: F403
-from .settings import BASE_DIR, CACHES, CSRF_TRUSTED_ORIGINS
+from .settings import BASE_DIR, CACHES, CSRF_TRUSTED_ORIGINS, DEBUG
 
 STATIC_ROOT = BASE_DIR / "static"
 CACHES = {
@@ -18,4 +18,5 @@ CSRF_TRUSTED_ORIGINS = list(filter(
     None,
     os.getenv("CSRF_TRUSTED_ORIGINS", ",".join(CSRF_TRUSTED_ORIGINS)).split(","),
 ))
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"
+# Public Academy credentials are permitted only for local submission/development.
+ACADEMY_DEFAULT_ADMIN = DEBUG

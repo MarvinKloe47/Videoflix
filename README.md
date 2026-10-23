@@ -25,9 +25,10 @@ Alternatively, use `cp .env.example .env` on macOS/Linux or
 `Copy-Item .env.example .env` in Windows PowerShell.
 
 Edit `.env` and replace **SECRET_KEY** and **DB_PASSWORD** with different long,
-random values. The remaining defaults work for local Docker use. Never commit
-`.env`. For real email delivery, configure the SMTP values explained in that file;
-the default email backend prints messages to the container logs.
+random values. Configure your SMTP provider: **EMAIL_HOST**, **EMAIL_HOST_USER**,
+**EMAIL_HOST_PASSWORD** and a verified **DEFAULT_FROM_EMAIL**. Use TLS on port 587
+or SSL on 465, never both. Never commit `.env`. For local tests without delivery,
+explicitly set `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`.
 
 Start from the repository root:
 
@@ -42,10 +43,11 @@ initialization command is needed. The database and media use persistent volumes.
 Backend: http://127.0.0.1:8000/api/csrf/
 Admin: http://127.0.0.1:8000/admin/
 
-For automatic admin creation, set both `DJANGO_SUPERUSER_EMAIL` and
-`DJANGO_SUPERUSER_PASSWORD` in `.env` before startup. Existing admin passwords
-are retained. With both values empty, startup prints a clear skip message.
-With only one value set, initialization fails with a configuration error.
+The local Academy profile (`DEBUG=true`) automatically creates the official test
+admin: **admin@example.com / adminpassword**. Do not expose this setup publicly.
+Set both `DJANGO_SUPERUSER_EMAIL` and `DJANGO_SUPERUSER_PASSWORD` to use your own
+credentials. Existing passwords are retained; partial values fail initialization.
+With `DEBUG=false`, no default admin is created: configure both values explicitly.
 Alternatively, create an administrator in a second terminal:
 
 ```sh

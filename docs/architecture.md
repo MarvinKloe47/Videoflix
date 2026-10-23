@@ -45,7 +45,9 @@ migrations, migrates PostgreSQL and collects static files before web/worker star
 The own entrypoint bypasses the upstream username-based admin bootstrap and calls
 the email-aware bootstrap_admin management command after migrate. Explicit env
 credentials create an active superuser once; existing passwords/roles are retained.
-Missing/partial/conflicting credentials are handled explicitly. Django's built-in
+In the local Academy DEBUG profile only, absent credentials use the documented
+upstream test admin; production requires explicit credentials. Partial/conflicting
+credentials are handled explicitly. Django's built-in
 createsuperuser remains available. Email-specific admin forms inherit Django's
 password handling and permissions; the User admin exposes account management.
 
@@ -93,8 +95,9 @@ have been retired; do not attach their old volumes to this fresh-schema setup.
 
 Staff video uploads use `/admin/video_app/video/add/` with an MP4 and a JPG/PNG/WebP
 thumbnail. Frontend activation/reset URLs are set with FRONTEND_ACTIVATION_URL and
-FRONTEND_PASSWORD_RESET_URL. Local mail uses the console backend. External SMTP
-requires EMAIL_BACKEND and EMAIL_* settings; never version real credentials.
+FRONTEND_PASSWORD_RESET_URL. SMTP is the default and requires provider EMAIL_*
+settings and a verified sender.
+The console backend is an explicit local-only override; never version credentials.
 
 ## CSRF and frontend compatibility
 

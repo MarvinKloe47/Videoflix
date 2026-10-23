@@ -1,6 +1,73 @@
 # Videoflix submission check
 
-## Second mentor feedback: current working changes
+## Fourth mentor feedback: standard administrator and SMTP
+
+Current uncommitted update, tested on 2026-10-22. This section supersedes earlier
+statements about skipping local admin creation and console mail defaults.
+
+### Causes and changes
+
+- bootstrap_admin previously skipped when both optional credentials were empty.
+  The pinned Academy entrypoint and .env.template explicitly specify the public
+  local credentials admin@example.com / adminpassword (username admin). Our
+  email-only manager cannot accept the original username-based bootstrap.
+- The existing init order remains migrate -> bootstrap_admin -> collectstatic,
+  followed by web/worker. In core.academy_settings with DEBUG=true, missing/empty
+  credentials now use those exact public test values and print a local-only notice.
+  Outside that profile or with DEBUG=false, there is no default account. Explicit
+  credentials still work. Partial values fail; existing accounts/passwords/roles
+  are never overwritten or promoted. All new passwords still use Django validation.
+- Settings and .env.example previously selected console mail, so provider values
+  alone could not enable delivery. SMTP is now the default. EMAIL_USE_SSL moved
+  from the Academy adapter to the central settings beside EMAIL_USE_TLS so both
+  profiles support implicit SSL. Django rejects TLS and SSL enabled together.
+- README/.env.example explain required provider credentials, verified sender,
+  TLS/587 versus SSL/465, and the explicit console-only local test override.
+  Activation/reset services, tokens, API contracts and Docker files are unchanged.
+
+### Executed verification
+
+A fresh local clone of 4a557fe plus working changes was started with the unchanged
+Academy Dockerfile and normal automatic Compose override. Isolated project:
+videoflix-mentor4-ceacf0bd, host port 8014, four newly created volumes. No existing
+volumes were mounted or deleted. Optional admin values were blank for first start.
+A temporary SMTP harness/certificate outside the repository captured actual mail;
+its test credentials/private key were never added to repository files. The extra
+SSL trust certificate/env entries exist only in that disposable test clone.
+The test stack was stopped after verification, with its volumes retained.
+
+| Check | Result |
+|---|---|
+| docker compose up --build --wait | Passed; migrations, init, web and worker healthy |
+| Automatic Academy admin | Created after migrations; real admin login and user list passed |
+| Complete backend suite | 95 passed in 18.373s, no skips |
+| Full stop/up with admin variables completely absent | One admin, same ID/password hash; existing member data and migration hashes retained |
+| Post-restart admin/account/SMTP HTTP flow | Passed again |
+| Ruff / DA function-size check / diff whitespace | Passed; 51 Python files, 238 functions <=14 lines |
+| Academy references and root copies | Byte-identical to pinned originals |
+| SMTP/environment targeted tests on host | 7 passed; STARTTLS, SSL, sender, credentials and errors |
+| Django system check | Passed |
+| makemigrations --check --dry-run / migrate --check | Passed; no model changes |
+| pip check / Redis | Passed / PONG |
+| Real RQ/FFmpeg/HLS smoke | PASS: upload, cache, 480p/720p/1080p, protected delivery |
+| Real SMTP STARTTLS + authentication | Activation and reset messages accepted by local SMTP server |
+| Real SMTP implicit SSL + authentication | Reset message accepted by local SMTP server |
+| Real HTTP account flow | Registration, inactive-login rejection, activation, login, password reset, refresh, logout passed |
+| Provider sender/MIME | Configured sender, recipient and usable account links checked in captured messages |
+
+The SMTP harness requires TLS and correct authentication before accepting mail.
+STARTTLS/SSL tests use a trusted test certificate in the isolated clone only, not
+an insecure production certificate-validation bypass. Existing unit tests retain
+local-memory mail overrides; new tests cover actual backend selection and SMTP
+transport behavior, including authentication failure and conflicting TLS/SSL.
+
+External provider authentication, sender approval and delivery to an external
+mailbox were NOT tested. No real provider credentials or recipient mailbox were
+used. Successful local SMTP acceptance is not evidence of external delivery.
+Native macOS/Linux hosts and the complete Academy frontend UI were not run for
+this scoped update. No commit or push has been created.
+
+## Previous second mentor feedback: historical verification
 
 The mentor reports that Docker startup, video management, required fields and
 email delivery already work. This update addresses automatic admin creation,

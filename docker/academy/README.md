@@ -34,9 +34,14 @@ python manage.py collectstatic --noinput
 ```
 
 `DJANGO_SUPERUSER_EMAIL` and `DJANGO_SUPERUSER_PASSWORD` configure automatic admin
-creation. New credentials are validated with Django's email/password validators;
-no default or random password is created. Both empty means skip with a message;
-only one supplied fails initialization. An existing active superuser is retained
+creation. With both empty, `core.academy_settings` and `DEBUG=true` use the public
+Academy test credentials `admin@example.com` / `adminpassword`, as specified in
+the unchanged upstream entrypoint/template. The original username `admin` is not
+passed to our email-only manager. These credentials are local development/submission
+data, never a production default. With `DEBUG=false` or outside the Academy profile,
+both empty means skip with a message; configure both explicitly for deployment.
+New credentials use Django email/password validation. Only one supplied fails
+initialization. An existing active superuser is retained
 without changing its password. A conflicting regular or inactive account causes
 a clear error and is never promoted/reactivated. Choose another email or resolve
 that account deliberately. Repeated starts do not create duplicate users.
@@ -59,7 +64,7 @@ Major tags remain mutable; this is not an image-digest lock.
 ## Operation
 
 Follow the root README: copy `.env.example` to `.env`, set SECRET_KEY and
-DB_PASSWORD, then run `docker compose up --build`.
+DB_PASSWORD and the SMTP provider/sender values, then run `docker compose up --build`.
 Default host port is 8000. If an older stack occupies it, stop that stack without
 removing volumes, or set HTTP_PORT to a free port in the new `.env`.
 Do not reuse old PostgreSQL volumes or an old Compose project name for this setup.
@@ -71,3 +76,18 @@ changed Python code. Rebuild after dependency changes. Environment values and
 volumes are retained. Stop with `docker compose stop`.
 Host-platform test coverage is recorded in `../../docs/ABGABE_CHECK.md`;
 Linux-container tests alone do not prove every host platform.
+
+## SMTP delivery
+
+SMTP is the default backend in both settings and `.env.example`. Supply EMAIL_HOST,
+EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD and DEFAULT_FROM_EMAIL using your
+provider's verified sender. Use EMAIL_USE_TLS=true / EMAIL_USE_SSL=false on 587,
+or false / true on 465. Django rejects both being enabled. The Academy adapter
+inherits the same SMTP settings as the main settings; no duplicate SSL override.
+Activation and password-reset services use this backend and the configured sender;
+SMTP errors are not silently ignored. Provider authentication and sender policies
+must be satisfied before real delivery can succeed.
+
+Only for local tests without delivery, explicitly choose
+`EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`. This prints mail
+content and account links in local container logs, so do not share those logs.

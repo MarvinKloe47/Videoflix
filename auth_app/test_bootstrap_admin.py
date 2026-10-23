@@ -6,11 +6,12 @@ from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from .models import User
 
 
+@override_settings(ACADEMY_DEFAULT_ADMIN=False)
 class BootstrapAdminTests(TestCase):
     def run_bootstrap(self, email="", password=""):
         values = {"DJANGO_SUPERUSER_EMAIL": email,
@@ -74,3 +75,24 @@ class BootstrapAdminTests(TestCase):
             self.run_bootstrap(user.email, "DifferentFixture456!")
         user.refresh_from_db()
         self.assertFalse(user.is_active)
+
+    @override_settings(DEBUG=True, ACADEMY_DEFAULT_ADMIN=True)
+    def test_local_academy_defaults_create_known_admin(self):
+        self.run_bootstrap()
+        user = User.objects.get(email="admin@example.com")
+        self.assertTrue(user.is_active and user.is_staff and user.is_superuser)
+        self.assertTrue(user.check_password("adminpassword"))
+        self.run_bootstrap()
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(User.objects.get().password, user.password)
+
+    @override_settings(DEBUG=False, ACADEMY_DEFAULT_ADMIN=True)
+    def test_production_never_uses_academy_defaults(self):
+        self.run_bootstrap()
+        self.assertFalse(User.objects.exists())
+
+    @override_settings(DEBUG=True, ACADEMY_DEFAULT_ADMIN=True)
+    def test_default_does_not_overwrite_existing_admin_password(self):
+        self.run_bootstrap("admin@example.com", "CustomFixture123!")
+        self.run_bootstrap()
+        self.assertTrue(User.objects.get().check_password("CustomFixture123!"))
